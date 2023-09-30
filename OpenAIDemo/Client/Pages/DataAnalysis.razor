@@ -1,0 +1,153 @@
+﻿@page "/data"
+@using Azure.Storage.Blobs;
+@using Azure.Storage.Blobs.Models;
+@using OpenAIDemo.Shared;
+@using Markdig;
+@using System.Text.Json;
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime;
+
+<div class="col-6">
+    <div class="row">
+        <p>Start by uploading a CSV file:</p>
+        <InputFile OnChange="UploadAsync" />
+
+        <p>Status: @_status</p>
+    </div>
+</div>
+
+@if (_chatVisible)
+{
+    <div class="chat-container">
+        <div class="chat-header">
+            <h3>Blazor Chat</h3>
+        </div>
+
+        <div class="chat-messages" @ref="messagesContainer">
+            @foreach (var message in messages)
+            {
+                <div class="chat-message @(message.IsOwnMessage ? "own-message" : "other-message")">
+                    <span>@((MarkupString)Markdown.ToHtml(message.Content))</span>
+                </div>
+            }
+        </div>
+
+        <div class="chat-input">
+            <input @bind="newMessage" @bind:event="oninput" placeholder="Type your message..." @onkeydown="@EnterAsync" />
+            <button @onclick="SendMessageAsync">Send</button>
+        </div>
+    </div>
+}
+
+@code {
+    private const long MAX_SIZE = 1024 * 1024 * 1024;
+
+    private string _status = string.Empty;
+
+    private bool _chatVisible = false;
+
+    private DataFile _file = null;
+
+    private ElementReference messagesContainer;
+    private string newMessage = string.Empty;
+    private List<ChatMessage> messages = new List<ChatMessage>();
+    private SpeechToken token;
+    private ChatSession chatSession;
+
+    private class ChatMessage
+    {
+        public string Content { get; set; }
+        public bool IsOwnMessage { get; set; }
+    }
+
+    protected async override Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        token = await Http.GetFromJsonAsync<SpeechToken>("api/speechtotext/token");
+        var response = await Http.PostAsync("api/analysis", null);
+
+        response.EnsureSuccessStatusCode();
+
+        chatSession = await response.Content.ReadFromJsonAsync<ChatSession>();
+    }
+
+    private async Task UpdateStatusAsync(string message, bool? chatVisible = null)
+    {
+        _status = message;
+
+        if (chatVisible.HasValue)
+        {
+            _chatVisible = chatVisible.Value;
+        }
+
+        this.StateHasChanged();
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs e)
+    {
+        string fileName = e.File.Name;
+
+        var response = await this.Http.PostAsync($"/api/analysis/{chatSession.Id}/files/{fileName}", content: null);
+
+        response.EnsureSuccessStatusCode();
+
+        await UpdateStatusAsync("Upload in progress...");
+
+        _file = await response.Content.ReadFromJsonAsync<DataFile>();
+
+        var blob = new BlobClient(new Uri(_file.Url));
+
+        await blob.UploadAsync(e.File.OpenReadStream(maxAllowedSize: MAX_SIZE), overwrite: true);
+
+        var chatMessage = new ChatMessage { Content = "looking at the file...", IsOwnMessage = false };
+        messages.Add(chatMessage);
+
+        await UpdateStatusAsync("Upload completed! Starting analysis...", chatVisible: true);
+
+        response = await Http.PatchAsync($"api/analysis/{chatSession.Id}/files/{fileName}", null);
+        response.EnsureSuccessStatusCode();
+        var responseMessage = await response.Content.ReadAsStringAsync();
+
+        chatMessage.Content = responseMessage;
+        this.StateHasChanged();
+        await ScrollToBottom();
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(newMessage))
+        {
+            var text = newMessage;
+
+            messages.Add(new ChatMessage { Content = newMessage, IsOwnMessage = true });
+            // Scroll to bottom logic here
+            newMessage = string.Empty;
+
+            var chatMessage = new ChatMessage { Content = "...", IsOwnMessage = false };
+            messages.Add(chatMessage);
+            this.StateHasChanged();
+
+            var response = await Http.PostAsJsonAsync<string>($"api/analysis/{chatSession.Id}/message", text);
+            response.EnsureSuccessStatusCode();
+            var responseMessage = await response.Content.ReadAsStringAsync();
+
+            chatMessage.Content = responseMessage;
+            this.StateHasChanged();
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await JSRuntime.InvokeVoidAsync("MyFunctions.scrollToBottom", messagesContainer);
+    }
+
+    private async Task EnterAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendMessageAsync();
+        }
+    }
+}

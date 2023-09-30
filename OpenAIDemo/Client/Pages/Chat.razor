@@ -1,0 +1,132 @@
+﻿@page "/chat"
+@using OpenAIDemo.Shared;
+@using Markdig;
+@using System.Text.Json;
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime;
+
+<div class="chat-container">
+    <div class="chat-header">
+        <h3>Blazor Chat</h3>
+    </div>
+
+    <div class="chat-messages" @ref="messagesContainer">
+        @foreach (var message in messages)
+        {
+            <div class="chat-message @(message.IsOwnMessage ? "own-message" : "other-message")">
+                <span>@((MarkupString)Markdown.ToHtml(message.Content))</span>
+            </div>
+        }
+    </div>
+
+    <div class="chat-input">
+        <input @bind="newMessage" @bind:event="oninput" placeholder="Type your message..." @onkeydown="@EnterAsync" />
+        <button @onclick="SendMessageStreamAsync">Send</button>
+    </div>
+</div>
+
+@code {
+    private ElementReference messagesContainer;
+    private string newMessage = string.Empty;
+    private List<ChatMessage> messages = new List<ChatMessage>();
+    private SpeechToken token;
+    private ChatSession chatSession;
+
+    private class ChatMessage
+    {
+        public string Content { get; set; }
+        public bool IsOwnMessage { get; set; }
+    }
+
+    protected async override Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        token = await Http.GetFromJsonAsync<SpeechToken>("api/speechtotext/token");
+        var response = await Http.PostAsync("api/chat", null);
+
+        response.EnsureSuccessStatusCode();
+
+        chatSession = await response.Content.ReadFromJsonAsync<ChatSession>();
+    }
+
+    private async Task SendMessageAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(newMessage))
+        {
+            var text = newMessage;
+
+            messages.Add(new ChatMessage { Content = newMessage, IsOwnMessage = true });
+            // Scroll to bottom logic here
+            newMessage = string.Empty;
+
+            var chatMessage = new ChatMessage { Content = "...", IsOwnMessage = false };
+            messages.Add(chatMessage);
+            this.StateHasChanged();
+
+            var response = await Http.PostAsJsonAsync<string>($"api/chat/{chatSession.Id}/message", text);
+            response.EnsureSuccessStatusCode();
+            var responseMessage = await response.Content.ReadAsStringAsync();
+
+            chatMessage.Content = responseMessage;
+            this.StateHasChanged();
+            await ScrollToBottom();
+        }
+    }
+
+    private async Task SendMessageStreamAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(newMessage))
+        {
+            var text = newMessage;
+
+            messages.Add(new ChatMessage { Content = newMessage, IsOwnMessage = true });
+            // Scroll to bottom logic here
+            newMessage = string.Empty;
+
+            var chatMessage = new ChatMessage { Content = "...", IsOwnMessage = false };
+            messages.Add(chatMessage);
+            this.StateHasChanged();
+            await ScrollToBottom();
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"api/chat/{chatSession.Id}/message-stream");
+            request.SetBrowserResponseStreamingEnabled(true); // Enable response streaming
+            request.Content = JsonContent.Create(text);
+
+            // Be sure to use HttpCompletionOption.ResponseHeadersRead
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            using var responseStream = await response.Content.ReadAsStreamAsync();
+
+            IAsyncEnumerable<string> items = JsonSerializer.DeserializeAsyncEnumerable<string>(
+            responseStream,
+            new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    DefaultBufferSize = 128
+                });
+
+            chatMessage.Content = string.Empty;
+            await foreach (string item in items)
+            {
+                chatMessage.Content += item;
+                this.StateHasChanged();
+                await ScrollToBottom();
+            }
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await JSRuntime.InvokeVoidAsync("MyFunctions.scrollToBottom", messagesContainer);
+    }
+
+    private async Task EnterAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendMessageAsync();
+        }
+    }
+}
