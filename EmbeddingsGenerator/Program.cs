@@ -6,18 +6,26 @@ using Azure.Search.Documents.Indexes.Models;
 using Azure.Search.Documents.Models;
 using CsvHelper;
 using EmbeddingsGenerator;
+using Microsoft.Extensions.Configuration;
 using System.Globalization;
 
-var searchUrl = new Uri("https://demo-ai-search.search.windows.net");
-var indexName = "embed-idx";
-var searchCredential = new AzureKeyCredential("RIJUxTOy0zyRvbJAY2wSUyY543yM1aSrUzeSLO9DupAzSeCTmrsI");
-//var searchCredential = new VisualStudioCredential();
+var builder = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddJsonFile("appsettings.Development.json", optional: false, reloadOnChange: true);
+
+var configuration = builder.Build();
+
+var azureConfig = new AzureConfig();
+configuration.Bind("Azure", azureConfig);
+
+var searchUrl = new Uri(azureConfig.Search.SearchUrl);
+var indexName = azureConfig.Search.IndexName;
+var searchCredential = new AzureKeyCredential(azureConfig.Search.SearchKey);
 const int ModelDimensions = 1536;
 const string vectorSearchConfigName = "my-vector-config";
-string openAiEndpoint = "https://gptdes.openai.azure.com/";
-string openAiKey = "c68d80b3f00a4c719a3687f925b647c8";
-// Enter the deployment name you chose when you deployed the model.
-string engine = "ada-embed";
+string openAiEndpoint = azureConfig.OpenAi.OpenAiEndpoint;
+string openAiKey = azureConfig.OpenAi.OpenAiKey;
+string engine = azureConfig.OpenAi.EmbedEngine;
 
 await QueryIndexAsync();
 
