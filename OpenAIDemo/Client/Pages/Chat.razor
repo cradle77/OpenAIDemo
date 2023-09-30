@@ -49,30 +49,6 @@
         chatSession = await response.Content.ReadFromJsonAsync<ChatSession>();
     }
 
-    private async Task SendMessageAsync()
-    {
-        if (!string.IsNullOrWhiteSpace(newMessage))
-        {
-            var text = newMessage;
-
-            messages.Add(new ChatMessage { Content = newMessage, IsOwnMessage = true });
-            // Scroll to bottom logic here
-            newMessage = string.Empty;
-
-            var chatMessage = new ChatMessage { Content = "...", IsOwnMessage = false };
-            messages.Add(chatMessage);
-            this.StateHasChanged();
-
-            var response = await Http.PostAsJsonAsync<string>($"api/chat/{chatSession.Id}/message", text);
-            response.EnsureSuccessStatusCode();
-            var responseMessage = await response.Content.ReadAsStringAsync();
-
-            chatMessage.Content = responseMessage;
-            this.StateHasChanged();
-            await ScrollToBottom();
-        }
-    }
-
     // private async Task SendMessageAsync()
     // {
     //     if (!string.IsNullOrWhiteSpace(newMessage))
@@ -86,34 +62,58 @@
     //         var chatMessage = new ChatMessage { Content = "...", IsOwnMessage = false };
     //         messages.Add(chatMessage);
     //         this.StateHasChanged();
-    //         await ScrollToBottom();
 
-    //         using var request = new HttpRequestMessage(HttpMethod.Post, $"api/chat/{chatSession.Id}/message-stream");
-    //         request.SetBrowserResponseStreamingEnabled(true); // Enable response streaming
-    //         request.Content = JsonContent.Create(text);
-
-    //         using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+    //         var response = await Http.PostAsJsonAsync<string>($"api/chat/{chatSession.Id}/message", text);
     //         response.EnsureSuccessStatusCode();
+    //         var responseMessage = await response.Content.ReadAsStringAsync();
 
-    //         using var responseStream = await response.Content.ReadAsStreamAsync();
-
-    //         IAsyncEnumerable<string> items = JsonSerializer.DeserializeAsyncEnumerable<string>(
-    //         responseStream,
-    //         new JsonSerializerOptions
-    //             {
-    //                 PropertyNameCaseInsensitive = true,
-    //                 DefaultBufferSize = 128
-    //             });
-
-    //         chatMessage.Content = string.Empty;
-    //         await foreach (string item in items)
-    //         {
-    //             chatMessage.Content += item;
-    //             this.StateHasChanged();
-    //             await ScrollToBottom();
-    //         }
+    //         chatMessage.Content = responseMessage;
+    //         this.StateHasChanged();
+    //         await ScrollToBottom();
     //     }
     // }
+
+    private async Task SendMessageAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(newMessage))
+        {
+            var text = newMessage;
+
+            messages.Add(new ChatMessage { Content = newMessage, IsOwnMessage = true });
+            // Scroll to bottom logic here
+            newMessage = string.Empty;
+
+            var chatMessage = new ChatMessage { Content = "...", IsOwnMessage = false };
+            messages.Add(chatMessage);
+            this.StateHasChanged();
+            await ScrollToBottom();
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"api/chat/{chatSession.Id}/message-stream");
+            request.SetBrowserResponseStreamingEnabled(true); // Enable response streaming
+            request.Content = JsonContent.Create(text);
+
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            using var responseStream = await response.Content.ReadAsStreamAsync();
+
+            IAsyncEnumerable<string> items = JsonSerializer.DeserializeAsyncEnumerable<string>(
+            responseStream,
+            new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    DefaultBufferSize = 128
+                });
+
+            chatMessage.Content = string.Empty;
+            await foreach (string item in items)
+            {
+                chatMessage.Content += item;
+                this.StateHasChanged();
+                await ScrollToBottom();
+            }
+        }
+    }
 
     private async Task ScrollToBottom()
     {

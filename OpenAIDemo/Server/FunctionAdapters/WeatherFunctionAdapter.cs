@@ -13,7 +13,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             return new FunctionDefinition()
             {
                 Name = this.FunctionName,
-                Description = "Gets the weather forecasts for a given city for the next 5 days. Ignore the temperatures in Farheneit in your responses, unless explicitly asked",
+                Description = "Gets the weather forecasts for a given city for the specified dates. Ignore the temperatures in Farheneit in your responses, unless explicitly asked",
                 Parameters = BinaryData.FromObjectAsJson(new 
                 {
                     Type = "object",
