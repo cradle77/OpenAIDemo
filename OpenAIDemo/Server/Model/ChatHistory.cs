@@ -15,8 +15,7 @@ namespace OpenAIDemo.Server.Model
         {
             _messages = new List<ChatMessage>()
             {
-                //new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.")
-                new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.")
+                new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions.")
             };
         }
 
@@ -55,10 +54,10 @@ namespace OpenAIDemo.Server.Model
         {
             _messages.Add(message);
 
-            while (this.CalculateLength() > TokenLimit)
-            {
-                _messages.RemoveAt(1);
-            }
+            //while (this.CalculateLength() > TokenLimit)
+            //{
+            //    _messages.RemoveAt(1);
+            //}
         }
 
         public override string ToString()

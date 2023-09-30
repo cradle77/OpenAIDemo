@@ -1,13 +1,10 @@
-﻿using Azure.AI.OpenAI;
-using Azure;
+﻿using Azure;
+using Azure.AI.OpenAI;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using OpenAIDemo.Server.Model;
 using OpenAIDemo.Shared;
 using System.Text.Json;
-using OpenAIDemo.Server.FunctionAdapters;
-using OpenAIDemo.Server.Model;
-using Microsoft.Net.Http.Headers;
-using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Options;
 
 namespace OpenAIDemo.Server.Controllers
 {
@@ -16,7 +13,6 @@ namespace OpenAIDemo.Server.Controllers
     public class ChatController : ControllerBase
     {
         private static Dictionary<Guid, ChatHistory> _sessions;
-        private IFunctionHandler _functionHandler;
         private AzureConfig _config;
 
         static ChatController()
@@ -24,9 +20,8 @@ namespace OpenAIDemo.Server.Controllers
             _sessions = new Dictionary<Guid, ChatHistory>();
         }
 
-        public ChatController(IOptions<AzureConfig> config, IFunctionHandler functionHandler)
+        public ChatController(IOptions<AzureConfig> config)
         {
-            _functionHandler = functionHandler;
             _config = config.Value;
         }
 
@@ -52,28 +47,16 @@ namespace OpenAIDemo.Server.Controllers
 
             history.AddMessage(new ChatMessage(ChatRole.User, message));
 
-            ChatChoice choice;
-
-            do
+            var response = await client.GetChatCompletionsAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
+            history.Messages)
             {
-                var response = await client.GetChatCompletionsAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
-                history.Messages)
-                {
-                    Temperature = 0.7f,
-                    MaxTokens = 500,
-                    Functions = _functionHandler.GetFunctionDefinitions().ToList()
-                });
+                Temperature = 0.7f,
+                MaxTokens = 500,
+            });
 
-                Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
+            Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
 
-                choice = response.Value.Choices.First();
-
-                if (choice.FinishReason == CompletionsFinishReason.FunctionCall)
-                {
-                    history.AddMessage(await _functionHandler.ExecuteFunctionCallAsync(choice.Message.FunctionCall));
-                }
-            }
-            while (choice.FinishReason == CompletionsFinishReason.FunctionCall);
+            var choice = response.Value.Choices.First();
 
             var responseMessage = choice.Message;
 
@@ -93,54 +76,28 @@ namespace OpenAIDemo.Server.Controllers
 
             history.AddMessage(new ChatMessage(ChatRole.User, message));
 
-            StreamingChatChoice choice;
-
-            do
-            {
-                var response = await client.GetChatCompletionsStreamingAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
+            var response = await client.GetChatCompletionsStreamingAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
                 history.Messages)
-                {
-                    Temperature = 0.7f,
-                    MaxTokens = 500,
-                    Functions = _functionHandler.GetFunctionDefinitions().ToList()
-                }, token);
+            {
+                Temperature = 0.7f,
+                MaxTokens = 500,
+            }, token);
 
-                choice = await response.Value.GetChoicesStreaming().FirstAsync();
+            StreamingChatChoice choice = await response.Value.GetChoicesStreaming().FirstAsync();
 
-                Console.WriteLine(await choice.GetFinishReasonAsync() ?? "reason was empty");
-                if (choice.FinishReason == CompletionsFinishReason.FunctionCall)
-                {
-                    // concatenate all the messages in the asyncenumerable
-                    var messages = new FunctionStreamer(choice.GetMessageStreaming());
-                    var functionMessage = await messages.GetFunctions(token).SingleAsync();
+            var responseMessages = choice.GetMessageStreaming();
+            var fullResponse = string.Empty;
 
-                    history.AddMessage(await _functionHandler.ExecuteFunctionCallAsync(functionMessage.FunctionCall));
-                }
-            }
-            while (choice.FinishReason == CompletionsFinishReason.FunctionCall);
-
-            //var responseMessages = new NullStreamer(choice.GetMessageStreaming());
-            var responseMessages = new PhraseStreamer(choice.GetMessageStreaming());
-
-            await foreach (var responseMessage in responseMessages.GetPhrases(token))
+            await foreach (var responseMessage in responseMessages)
             {
                 Console.WriteLine($"Response: {responseMessage.Content}");
+                fullResponse += responseMessage.Content;
                 yield return responseMessage.Content;
             }
 
-            history.AddMessage(responseMessages.Result);
+            history.AddMessage(new ChatMessage(ChatRole.Assistant, fullResponse));
 
             Console.WriteLine(history);
-        }
-    }
-
-    public static class Extensions
-    {
-        public static async Task<CompletionsFinishReason?> GetFinishReasonAsync(this StreamingChatChoice choice)
-        {
-            await choice.GetMessageStreaming().FirstOrDefaultAwaitAsync(async x => !string.IsNullOrEmpty(x.Content));
-
-            return choice.FinishReason;
         }
     }
 }

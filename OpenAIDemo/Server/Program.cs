@@ -1,6 +1,3 @@
-using Microsoft.AspNetCore.ResponseCompression;
-using OpenAIDemo.Server.FunctionAdapters;
-using OpenAIDemo.Server.InferenceProviders;
 using OpenAIDemo.Server.Model;
 
 namespace OpenAIDemo
@@ -18,16 +15,6 @@ namespace OpenAIDemo
             builder.Services.AddControllersWithViews();
             builder.Services.AddRazorPages();
             builder.Services.AddHttpClient();
-            builder.Services.AddTransient<IFunctionAdapter, WeatherFunctionAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, HotelSearchAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, HotelBookingAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, ShoppingAddAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, ShoppingGetListAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, ShoppingModifyAdapter>();
-            builder.Services.AddSingleton<IFunctionHandler, FunctionHandler>();
-            builder.Services.AddTransient<IFunctionAdapter, CsvGetColumnsAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, CsvQueryAdapter>();
-            builder.Services.AddTransient<IInferenceProvider<ReviewDetails>, ReviewInferenceProvider>();
 
             var app = builder.Build();
 
