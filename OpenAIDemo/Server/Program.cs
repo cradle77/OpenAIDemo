@@ -1,3 +1,4 @@
+using OpenAIDemo.Server.FunctionAdapters;
 using OpenAIDemo.Server.Model;
 
 namespace OpenAIDemo
@@ -15,6 +16,11 @@ namespace OpenAIDemo
             builder.Services.AddControllersWithViews();
             builder.Services.AddRazorPages();
             builder.Services.AddHttpClient();
+            builder.Services.AddTransient<IFunctionAdapter, WeatherFunctionAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, ShoppingAddAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, ShoppingGetListAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, ShoppingModifyAdapter>();
+            builder.Services.AddSingleton<IFunctionHandler, FunctionHandler>();
 
             var app = builder.Build();
 
