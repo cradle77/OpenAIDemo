@@ -8,6 +8,7 @@ using OpenAIDemo.Server.Model;
 using Microsoft.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Options;
+using OpenAIDemo.Server.DataSources;
 
 namespace OpenAIDemo.Server.Controllers
 {
@@ -18,16 +19,18 @@ namespace OpenAIDemo.Server.Controllers
         private static Dictionary<Guid, ChatHistory> _sessions;
         private IFunctionHandler _functionHandler;
         private AzureConfig _config;
+        private List<AzureChatExtensionConfiguration> _dataSources;
 
         static ChatController()
         {
             _sessions = new Dictionary<Guid, ChatHistory>();
         }
 
-        public ChatController(IOptions<AzureConfig> config, IFunctionHandler functionHandler)
+        public ChatController(IOptions<AzureConfig> config, IFunctionHandler functionHandler, IEnumerable<IOpenAIDataSource> dataSources)
         {
             _functionHandler = functionHandler;
             _config = config.Value;
+            _dataSources = dataSources.Select(x => x.GetDataSource()).ToList();
         }
 
         [HttpPost()]
@@ -52,16 +55,25 @@ namespace OpenAIDemo.Server.Controllers
 
             history.AddMessage(new ChatMessage(ChatRole.User, message));
 
+            // datasource not supported in the latest version
+            string engine = "gpt-35-0301";
+
             ChatChoice choice;
 
             do
             {
-                var response = await client.GetChatCompletionsAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
+                var response = await client.GetChatCompletionsAsync(engine, new ChatCompletionsOptions(
                 history.Messages)
                 {
                     Temperature = 0.7f,
                     MaxTokens = 500,
-                    Functions = _functionHandler.GetFunctionDefinitions().ToList()
+                    AzureExtensionsOptions = new AzureChatExtensionsOptions()
+                    {
+                        Extensions =
+                        {
+                            _dataSources[0]
+                        }
+                    }
                 });
 
                 Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
@@ -94,15 +106,24 @@ namespace OpenAIDemo.Server.Controllers
             history.AddMessage(new ChatMessage(ChatRole.User, message));
 
             StreamingChatChoice choice;
+            
+            // datasource not supported in the latest version
+            string engine = "gpt-35-0301";
 
             do
             {
-                var response = await client.GetChatCompletionsStreamingAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
+                var response = await client.GetChatCompletionsStreamingAsync(engine, new ChatCompletionsOptions(
                 history.Messages)
                 {
                     Temperature = 0.7f,
                     MaxTokens = 500,
-                    Functions = _functionHandler.GetFunctionDefinitions().ToList()
+                    AzureExtensionsOptions = new AzureChatExtensionsOptions()
+                    {
+                        Extensions =
+                        {
+                            _dataSources[0]
+                        }
+                    }
                 }, token);
 
                 choice = await response.Value.GetChoicesStreaming().FirstAsync();
@@ -119,7 +140,6 @@ namespace OpenAIDemo.Server.Controllers
             }
             while (choice.FinishReason == CompletionsFinishReason.FunctionCall);
 
-            //var responseMessages = new NullStreamer(choice.GetMessageStreaming());
             var responseMessages = new PhraseStreamer(choice.GetMessageStreaming());
 
             await foreach (var responseMessage in responseMessages.GetPhrases(token))

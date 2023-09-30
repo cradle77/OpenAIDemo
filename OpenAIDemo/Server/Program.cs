@@ -1,3 +1,4 @@
+using OpenAIDemo.Server.DataSources;
 using OpenAIDemo.Server.FunctionAdapters;
 using OpenAIDemo.Server.Model;
 
@@ -21,6 +22,7 @@ namespace OpenAIDemo
             builder.Services.AddTransient<IFunctionAdapter, ShoppingGetListAdapter>();
             builder.Services.AddTransient<IFunctionAdapter, ShoppingModifyAdapter>();
             builder.Services.AddSingleton<IFunctionHandler, FunctionHandler>();
+            builder.Services.AddTransient<IOpenAIDataSource, HotelsDataSource>();
 
             var app = builder.Build();
 
