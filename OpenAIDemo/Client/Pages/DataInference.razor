@@ -1,0 +1,80 @@
+﻿@page "/inference"
+@using OpenAIDemo.Shared;
+@inject HttpClient Http
+@inject IJSRuntime JSRuntime;
+
+<div class="chat-container">
+    <div class="chat-header">
+        <h3>Paste the review below</h3>
+    </div>
+
+    <div class="chat-input">
+        <InputTextArea @bind-Value="reviewText" placeholder="Type your review..." @onkeydown="@EnterAsync" />
+        <button @onclick="SendMessageAsync">Send</button>
+    </div>
+
+    @if (review != null)
+    {
+        <div class="chat-message other-message">
+            <p><strong>Hotel:</strong> @(review.HotelName ?? "N/A")</p>
+            <p><strong>Duration:</strong> @(review.Duration?.ToString() ?? "N/A") days</p>
+            <p><strong>Sentiment Value:</strong> @review.SentimentValue</p>
+            <p><strong>Customer Type:</strong> @(review.CustomerType?.ToString() ?? "N/A")</p>
+            <strong>Positive Notes</strong>
+            <ul>
+                @if (review.PositiveNotes?.Any() == true)
+                {
+                    @foreach (var note in review.PositiveNotes)
+                    {
+                        <li>@note</li>
+                    }
+                }
+                else
+                {
+                    <li>No positive notes available.</li>
+                }
+            </ul>
+            <strong>Negative Notes</strong>
+            <ul>
+                @if (review.NegativeNotes?.Any() == true)
+                {
+                    @foreach (var note in review.NegativeNotes)
+                    {
+                        <li>@note</li>
+                    }
+                }
+                else
+                {
+                    <li>No negative notes available.</li>
+                }
+            </ul>
+        </div>
+    }
+</div>
+
+@code
+{
+    private ReviewDetails review;
+    private string reviewText = string.Empty;
+
+    public async Task SendMessageAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var content = JsonContent.Create(reviewText);
+
+        var response = await Http.PostAsync("api/inference", content);
+
+        response.EnsureSuccessStatusCode();
+
+        this.review = await response.Content.ReadFromJsonAsync<ReviewDetails>();
+    }
+
+    private async Task EnterAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendMessageAsync();
+        }
+    }
+}

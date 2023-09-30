@@ -1,5 +1,7 @@
 using OpenAIDemo.Server.FunctionAdapters;
+using OpenAIDemo.Server.InferenceProviders;
 using OpenAIDemo.Server.Model;
+using OpenAIDemo.Shared;
 
 namespace OpenAIDemo
 {
@@ -25,6 +27,7 @@ namespace OpenAIDemo
             builder.Services.AddTransient<IFunctionAdapter, CsvGetColumnsAdapter>();
             builder.Services.AddTransient<IFunctionAdapter, CsvQueryAdapter>();
             builder.Services.AddSingleton<IFunctionHandler, FunctionHandler>();
+            builder.Services.AddTransient<IInferenceProvider<ReviewDetails>, ReviewInferenceProvider>();
 
             var app = builder.Build();
 

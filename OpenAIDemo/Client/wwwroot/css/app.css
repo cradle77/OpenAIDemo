@@ -279,6 +279,15 @@ audio {
         border-radius: 4px;
     }
 
+    .chat-input textarea {
+        flex: 1;
+        padding: 10px;
+        margin-right: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        height: 8em;
+    }
+
 .chat-message {
     margin-bottom: 10px;
     padding: 10px;
