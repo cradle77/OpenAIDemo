@@ -22,6 +22,8 @@ namespace OpenAIDemo
             builder.Services.AddTransient<IFunctionAdapter, ShoppingModifyAdapter>();
             builder.Services.AddTransient<IFunctionAdapter, HotelSearchAdapter>();
             builder.Services.AddTransient<IFunctionAdapter, HotelBookingAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, CsvGetColumnsAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, CsvQueryAdapter>();
             builder.Services.AddSingleton<IFunctionHandler, FunctionHandler>();
 
             var app = builder.Build();
