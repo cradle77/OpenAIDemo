@@ -5,4 +5,89 @@
 @inject IJSRuntime JS
 @inject HttpClient Http
 
-<h3>We'll add something cool here in a moment 😉</h3>
+@if (token == null)
+{
+    <p>getting token...</p>
+}
+else
+{
+    <div class="centered-content">
+        <button @ref="theButton" class="btn btn-primary rounded-circle p-4 big-mic-btn" @onclick="RecordStreamAsync">
+            <i class="fas fa-microphone fa-5x"></i>
+        </button>
+    </div>
+
+    <p>@text</p>
+}
+
+@code {
+    private SpeechToken token;
+    private string text;
+    private ChatSession chatSession;
+    private ElementReference theButton;
+
+    protected async override Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        token = await Http.GetFromJsonAsync<SpeechToken>("api/speechtotext/token");
+        var response = await Http.PostAsync("api/chat", null);
+
+        response.EnsureSuccessStatusCode();
+
+        chatSession = await response.Content.ReadFromJsonAsync<ChatSession>();
+    }
+
+    private async Task RecordAsync()
+    {
+        text = await JS.InvokeAsync<string>("MyFunctions.hearIt", token, theButton);
+        this.StateHasChanged();
+
+        // let's play the ding sound while waiting for the response
+        var dingTask = JS.InvokeAsync<object>("MyFunctions.playDing");
+        var responseTask = Http.PostAsJsonAsync<string>($"api/chat/{chatSession.Id}/message", text);
+        await dingTask;
+        var response = await responseTask;
+
+        response.EnsureSuccessStatusCode();
+        var responseMessage = await response.Content.ReadAsStringAsync();
+
+        await JS.InvokeAsync<string>("MyFunctions.sayIt", token, responseMessage);
+    }
+
+    private async Task RecordStreamAsync()
+    {
+        text = await JS.InvokeAsync<string>("MyFunctions.hearIt", token, theButton);
+
+        // let's play the ding sound while waiting for the response
+        var dingTask = JS.InvokeAsync<object>("MyFunctions.playDing");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"api/chat/{chatSession.Id}/message-stream");
+        request.SetBrowserResponseStreamingEnabled(true); // Enable response streaming
+        request.Content = JsonContent.Create(text);
+
+        // Be sure to use HttpCompletionOption.ResponseHeadersRead
+        using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        using var responseStream = await response.Content.ReadAsStreamAsync();
+
+        IAsyncEnumerable<string> items = JsonSerializer.DeserializeAsyncEnumerable<string>(
+        responseStream,
+        new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                DefaultBufferSize = 128
+            });
+
+        await foreach (string item in items)
+        {
+            if (!string.IsNullOrWhiteSpace(item))
+            {
+                await JS.InvokeAsync<string>("MyFunctions.sayIt", token, item);
+            }
+
+            Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss.fff")}: {item}");
+        }
+    }
+}
