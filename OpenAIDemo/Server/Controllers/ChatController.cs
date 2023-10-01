@@ -119,7 +119,6 @@ namespace OpenAIDemo.Server.Controllers
             }
             while (choice.FinishReason == CompletionsFinishReason.FunctionCall);
 
-            //var responseMessages = new NullStreamer(choice.GetMessageStreaming());
             var responseMessages = new PhraseStreamer(choice.GetMessageStreaming());
 
             await foreach (var responseMessage in responseMessages.GetPhrases(token))
