@@ -59,13 +59,12 @@ namespace OpenAIDemo.Server.FunctionAdapters
             })
             .ToArray();
 
-            return new ChatMessage(ChatRole.Function,
-                JsonSerializer.Serialize(
+            return new ChatMessage(ChatRole.Function,JsonSerializer.Serialize(
                     forecasts,
                     new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }))
-                    { 
-                        Name = this.FunctionName
-                    };
+                { 
+                    Name = this.FunctionName
+                };
         }
     }
 
