@@ -88,22 +88,9 @@
     //         this.StateHasChanged();
     //         await ScrollToBottom();
 
-    //         using var request = new HttpRequestMessage(HttpMethod.Post, $"api/chat/{chatSession.Id}/message-stream");
-    //         request.SetBrowserResponseStreamingEnabled(true); // Enable response streaming
-    //         request.Content = JsonContent.Create(text);
+    //         var content = JsonContent.Create(text);
 
-    //         using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-    //         response.EnsureSuccessStatusCode();
-
-    //         using var responseStream = await response.Content.ReadAsStreamAsync();
-
-    //         IAsyncEnumerable<string> items = JsonSerializer.DeserializeAsyncEnumerable<string>(
-    //         responseStream,
-    //         new JsonSerializerOptions
-    //             {
-    //                 PropertyNameCaseInsensitive = true,
-    //                 DefaultBufferSize = 128
-    //             });
+    //         var items = this.Http.PostAndGetStreamAsync<string>($"api/chat/{chatSession.Id}/message-stream", content);
 
     //         chatMessage.Content = string.Empty;
     //         await foreach (string item in items)
