@@ -90,7 +90,8 @@
 
     //         var content = JsonContent.Create(text);
 
-    //         var items = this.Http.PostAndGetStreamAsync<string>($"api/chat/{chatSession.Id}/message-stream", content);
+    //         IAsyncEnumerable<string> items =
+    //             this.Http.PostAndGetStreamAsync<string>($"api/chat/{chatSession.Id}/message-stream", content);
 
     //         chatMessage.Content = string.Empty;
     //         await foreach (string item in items)
