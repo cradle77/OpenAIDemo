@@ -85,15 +85,17 @@ namespace OpenAIDemo.Server.Controllers
 
             StreamingChatChoice choice = await response.Value.GetChoicesStreaming().FirstAsync();
 
-            var responseMessages = new PhraseStreamer(choice.GetMessageStreaming());
+            var responseMessages = choice.GetMessageStreaming();
+            var fullResponse = string.Empty;
 
-            await foreach (var responseMessage in responseMessages.GetPhrases(token))
+            await foreach (var responseMessage in responseMessages)
             {
                 Console.WriteLine($"Response: {responseMessage.Content}");
+                fullResponse += responseMessage.Content;
                 yield return responseMessage.Content;
             }
 
-            history.AddMessage(responseMessages.Result);
+            history.AddMessage(new ChatMessage(ChatRole.Assistant, fullResponse));
 
             Console.WriteLine(history);
         }
