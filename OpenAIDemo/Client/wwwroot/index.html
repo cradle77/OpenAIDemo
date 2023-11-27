@@ -36,7 +36,7 @@
 
         async function hearIt(tokenObj, buttonRef) {
             const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(tokenObj.authToken, tokenObj.region);
-            speechConfig.speechRecognitionLanguage = 'en-US';
+            speechConfig.speechRecognitionLanguage = 'it-IT';
 
             const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
             if (!recognizer)
@@ -70,6 +70,7 @@
 
         async function sayIt(tokenObj, text) {
             const speechConfig = SpeechSDK.SpeechConfig.fromAuthorizationToken(tokenObj.authToken, tokenObj.region);
+            speechConfig.speechSynthesisLanguage = 'it-IT';
 
             var player = new SpeechSDK.SpeakerAudioDestination();
             
