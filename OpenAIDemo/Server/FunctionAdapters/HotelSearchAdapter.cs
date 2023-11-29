@@ -51,7 +51,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             return new FunctionDefinition()
             {
                 Name = this.FunctionName,
-                Description = "This function queries a search engine for hotel reviews. It accepts a full text query string.",
+                Description = "This function queries a search engine for hotel reviews. It accepts a full text query string. If the query text is not in English, you need to translate it to English before using it.",
                 Parameters = BinaryData.FromObjectAsJson(new
                 {
                     Type = "object",
@@ -60,7 +60,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
                         QueryText = new
                         {
                             Type = "string",
-                            Description = "The text of the query for the hotels search engine",
+                            Description = "The text of the query for the hotels search engine. If the query text is not in English, you need to translate it to English before using it.",
                         },
                         ResultCount = new
                         {
