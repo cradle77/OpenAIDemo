@@ -26,7 +26,12 @@ namespace OpenAIDemo.Server.FunctionAdapters
             return new FunctionDefinition()
             {
                 Name = this.FunctionName,
-                Description = "This function allows you to execute a SQL query over a specified file and will return the resultset. The table name is always [TableName]. Do not specify the schema. You also need to pass the filename.",
+                Description = @"This function allows you to execute a SQL query over a specified file and will return the resultset. 
+The table name is always [TableName]. Do not specify the schema. You also need to pass the filename.
+
+The database is SQL Server, so always use standard T-SQL.
+
+Data could potentially contain a big number of rows, so make sure all your queries are properly limited (never exceed 20 rows)",
                 Parameters = BinaryData.FromObjectAsJson(new
                 {
                     Type = "object",
@@ -40,7 +45,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
                         SqlQuery = new
                         {
                             Type = "string",
-                            Description = "The query you want to execute over the file. The table name is always [TableName] without the schema. Important: the query must be in standard T-SQL.",
+                            Description = "The query you want to execute over the file. The table name is always [TableName] without the schema. Important: the query must be in standard T-SQL. Make sure the query is always limited (no more than 20 results).",
                             Example = "SELECT TOP 10 * from [TableName] ORDER BY Date DESC",
                         },
                     },
@@ -90,6 +95,16 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     };
                 }
             }
+            catch (SqlException ex)
+            {
+                Console.WriteLine(ex);
+                return new ChatMessage()
+                {
+                    Role = ChatRole.Function,
+                    Name = this.FunctionName,
+                    Content = "there was an error running the function, please remember to always use standard and basic T-SQL and that the name of the table is always [TableName], not the file name"
+                };
+            }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
@@ -97,7 +112,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
                 {
                     Role = ChatRole.Function,
                     Name = this.FunctionName,
-                    Content = "there was an error running the function, try again"
+                    Content = "there was an error running the function, please try again"
                 };
             }
         }

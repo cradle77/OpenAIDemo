@@ -19,11 +19,14 @@ namespace OpenAIDemo.Server.Controllers
         private AzureConfig _config;
         private static Dictionary<Guid, ChatHistory> _sessions = new Dictionary<Guid, ChatHistory>();
         private IFunctionHandler _functionHandler;
+        private string _engine;
 
         public AnalysisController(IOptions<AzureConfig> config, IFunctionHandler functionHandler)
         {
             _config = config.Value;
             _functionHandler = functionHandler;
+            _engine = "gpt4-des";
+            //_engine = _config.OpenAi.ChatEngine;
         }
 
         [HttpPost()]
@@ -44,11 +47,11 @@ Only return the insight text after you have calculated it, without giving interm
 
 The database is SQL Server, so always use standard T-SQL.
 
-Data could potentially contain a big number of rows, so make sure all your queries are properly limited (max 100 rows)";
+Data could potentially contain a big number of rows, so make sure all your queries are properly limited (never exceed 20 rows)";
 
             var sessionId = Guid.NewGuid();
 
-            _sessions.Add(sessionId, new ChatHistory(prompt));
+            _sessions.Add(sessionId, new ChatHistory(prompt, tokenLimit:8000));
             return Ok(new ChatSession() { Id = sessionId });
         }
 
@@ -98,9 +101,6 @@ Data could potentially contain a big number of rows, so make sure all your queri
             }
             var history = _sessions[sessionId];
 
-            // Enter the deployment name you chose when you deployed the model.
-            string engine = "gpt4-des";
-
             OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
             history.AddMessage(new ChatMessage(ChatRole.User, $"The file name is {fileName}"));
@@ -111,7 +111,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
             do
             {
-                var response = await client.GetChatCompletionsAsync(engine, new ChatCompletionsOptions(
+                var response = await client.GetChatCompletionsAsync(_engine, new ChatCompletionsOptions(
                 history.Messages)
                 {
                     Temperature = 0f,
@@ -152,9 +152,6 @@ Data could potentially contain a big number of rows, so make sure all your queri
             }
             var history = _sessions[sessionId];
 
-            // Enter the deployment name you chose when you deployed the model.
-            string engine = "gpt4-des";
-
             OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
             history.AddMessage(new ChatMessage(ChatRole.User, message));
@@ -165,7 +162,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
             do
             {
-                var response = await client.GetChatCompletionsAsync(engine, new ChatCompletionsOptions(
+                var response = await client.GetChatCompletionsAsync(_engine, new ChatCompletionsOptions(
                 history.Messages)
                 {
                     Temperature = 0f,

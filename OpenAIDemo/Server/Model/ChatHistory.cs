@@ -9,7 +9,7 @@ namespace OpenAIDemo.Server.Model
 
         public IEnumerable<ChatMessage> Messages => _messages;
 
-        private const int TokenLimit = 4000;
+        private int _tokenLimit;
 
         public ChatHistory()
         {
@@ -19,12 +19,14 @@ namespace OpenAIDemo.Server.Model
             };
         }
 
-        public ChatHistory(string prompt)
+        public ChatHistory(string prompt, int tokenLimit = 4000)
         {
             _messages = new List<ChatMessage>()
             {
                 new ChatMessage(ChatRole.System, prompt)
             };
+
+            _tokenLimit = tokenLimit;
         }
 
         private int CalculateLength()
