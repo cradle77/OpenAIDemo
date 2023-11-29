@@ -11,13 +11,9 @@ namespace OpenAIDemo.Server.Model
 
         private int _tokenLimit;
 
-        public ChatHistory()
-        {
-            _messages = new List<ChatMessage>()
-            {
-                new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.")
-            };
-        }
+        public ChatHistory(): this(
+            $"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.")
+        { }
 
         public ChatHistory(string prompt, int tokenLimit = 4000)
         {
@@ -56,7 +52,7 @@ namespace OpenAIDemo.Server.Model
         {
             _messages.Add(message);
 
-            while (this.CalculateLength() > TokenLimit)
+            while (this.CalculateLength() > _tokenLimit)
             {
                 _messages.RemoveAt(1);
             }
