@@ -15,6 +15,8 @@ namespace OpenAIDemo.Server.Model
             {
                 new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions.")
             };
+
+            this.ShowLog(_messages[0]);
         }
 
         public ChatHistory(string prompt)
@@ -29,14 +31,36 @@ namespace OpenAIDemo.Server.Model
         {
             _messages.Add(message);
 
-            if (message.Role == ChatRole.Assistant)
-            { 
-                var forecolor = Console.ForegroundColor;
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"\r\n\r\n\r\n{this.ToJson()}");
+            this.ShowLog(message);
+        }
 
-                Console.ForegroundColor = forecolor;
+        private void ShowLog(ChatMessage message)
+        {
+            var forecolor = Console.ForegroundColor;
+
+            if (message.Role == ChatRole.System)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
             }
+            else if (message.Role == ChatRole.User)
+            {
+                Console.ForegroundColor = ConsoleColor.Yellow;
+            }
+            else if (message.Role == ChatRole.Assistant)
+            {
+                Console.ForegroundColor = ConsoleColor.White;
+            }
+
+            var json = JsonSerializer.Serialize(
+                new
+                {
+                    Role = message.Role.ToString(), 
+                    Content = message.Content
+                }, new JsonSerializerOptions() { WriteIndented = true });
+
+            Console.WriteLine(json);
+
+            Console.ForegroundColor = forecolor;
         }
 
         public override string ToString()
