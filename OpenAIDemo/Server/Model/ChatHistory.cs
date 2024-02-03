@@ -1,81 +1,78 @@
 ﻿using Azure.AI.OpenAI;
-using System.Text.Json;
+using SharpToken;
 
 namespace OpenAIDemo.Server.Model
 {
     public class ChatHistory
     {
-        private List<ChatMessage> _messages;
+        protected List<ChatMessage> MessagesInternal;
 
-        public IEnumerable<ChatMessage> Messages => _messages;
+        public IEnumerable<ChatMessage> Messages => MessagesInternal;
+
+        private const int TokenLimit = 500;
 
         public ChatHistory()
         {
-            _messages = new List<ChatMessage>()
+            MessagesInternal = new List<ChatMessage>()
             {
                 new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions.")
             };
-
-            this.ShowLog(_messages[0]);
         }
 
         public ChatHistory(string prompt)
         {
-            _messages = new List<ChatMessage>()
+            MessagesInternal = new List<ChatMessage>()
             {
                 new ChatMessage(ChatRole.System, prompt)
             };
         }
 
-        public void AddMessage(ChatMessage message)
+        private int CalculateLength()
         {
-            _messages.Add(message);
+            // using logic explained here:
+            // https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
+            var encoding = GptEncoding.GetEncodingForModel("gpt-35-turbo");
 
-            this.ShowLog(message);
+            var tokens_per_message = 3; // message are encoded in the format:
+                                        // <|im_start|>role
+                                        // message
+                                        // <|im_end|>
+            var tokens_per_name = 1;
+
+            var result = 
+                // sum the tokens in each message
+                MessagesInternal.Sum(x => encoding.Encode(x.Content).Count()) + 
+                // add the tokens for the name of each message
+                MessagesInternal.Where(x => !string.IsNullOrWhiteSpace(x.Name)).Count() * tokens_per_name +
+                // add the tokens for the role of each message
+                MessagesInternal.Count * tokens_per_message;
+
+            return result;
         }
 
-        private void ShowLog(ChatMessage message)
+        public void AddMessage(ChatMessage message)
         {
-            var forecolor = Console.ForegroundColor;
+            MessagesInternal.Add(message);
 
-            if (message.Role == ChatRole.System)
+            if (this.CalculateLength() > TokenLimit)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
+                this.OnOverflow();
             }
-            else if (message.Role == ChatRole.User)
+        }
+
+        protected virtual void OnOverflow()
+        {
+            while (this.CalculateLength() > TokenLimit)
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"Removing message: {MessagesInternal[1].Content.Substring(0, Math.Min(40, MessagesInternal[1].Content.Length))}");
+
+                MessagesInternal.RemoveAt(1);
             }
-            else if (message.Role == ChatRole.Assistant)
-            {
-                Console.ForegroundColor = ConsoleColor.White;
-            }
-
-            var json = JsonSerializer.Serialize(
-                new
-                {
-                    Role = message.Role.ToString(), 
-                    Content = message.Content
-                }, new JsonSerializerOptions() { WriteIndented = true });
-
-            Console.WriteLine(json);
-
-            Console.ForegroundColor = forecolor;
         }
 
         public override string ToString()
         {
-            return $"Message count: {_messages.Count}";
-        }
-
-        public string ToJson()
-        {
-            return JsonSerializer.Serialize(
-                this.Messages.Select(x => new 
-                { 
-                    Role = x.Role.ToString(), 
-                    Content = x.Content
-                }), new JsonSerializerOptions() { WriteIndented = true });
+            return $"Message count: {MessagesInternal.Count} - Total tokens: {this.CalculateLength()}";
         }
     }
 }

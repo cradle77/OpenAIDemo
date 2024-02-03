@@ -3,6 +3,7 @@ using Azure.AI.OpenAI;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenAIDemo.Server.Model;
+using OpenAIDemo.Server.Queuing;
 using OpenAIDemo.Shared;
 using System.Text.Json;
 
@@ -13,6 +14,7 @@ namespace OpenAIDemo.Server.Controllers
     public class ChatController : ControllerBase
     {
         private static Dictionary<Guid, ChatHistory> _sessions;
+        private IBackgroundTaskQueue _queue;
         private AzureConfig _config;
 
         static ChatController()
@@ -20,8 +22,9 @@ namespace OpenAIDemo.Server.Controllers
             _sessions = new Dictionary<Guid, ChatHistory>();
         }
 
-        public ChatController(IOptions<AzureConfig> config)
+        public ChatController(IOptions<AzureConfig> config, IBackgroundTaskQueue queue)
         {
+            _queue = queue;
             _config = config.Value;
         }
 
@@ -30,7 +33,7 @@ namespace OpenAIDemo.Server.Controllers
         {
             var sessionId = Guid.NewGuid();
 
-            _sessions.Add(sessionId, new ChatHistory());
+            _sessions.Add(sessionId, new SummarisedChatHistory(_queue));
             return Ok(new ChatSession() { Id = sessionId });
         }
 

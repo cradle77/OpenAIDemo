@@ -1,4 +1,5 @@
 using OpenAIDemo.Server.Model;
+using OpenAIDemo.Server.Queuing;
 
 namespace OpenAIDemo
 {
@@ -15,6 +16,7 @@ namespace OpenAIDemo
             builder.Services.AddControllersWithViews();
             builder.Services.AddRazorPages();
             builder.Services.AddHttpClient();
+            builder.Services.AddQueueProcessor();
 
             var app = builder.Build();
 
