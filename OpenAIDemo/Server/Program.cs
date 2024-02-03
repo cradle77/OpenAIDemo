@@ -1,5 +1,6 @@
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Server.Queuing;
+using System.Text;
 
 namespace OpenAIDemo
 {
@@ -39,6 +40,7 @@ namespace OpenAIDemo
 
             app.UseRouting();
 
+            Console.OutputEncoding = Encoding.UTF8;
 
             app.MapRazorPages();
             app.MapControllers();
