@@ -5,25 +5,25 @@ namespace OpenAIDemo.Server.Model
 {
     public class ChatHistory
     {
-        protected List<ChatMessage> MessagesInternal;
+        protected List<ChatRequestMessage> MessagesInternal;
 
-        public IEnumerable<ChatMessage> Messages => MessagesInternal;
+        public IEnumerable<ChatRequestMessage> Messages => MessagesInternal;
 
         private const int TokenLimit = 500;
 
         public ChatHistory()
         {
-            MessagesInternal = new List<ChatMessage>()
+            MessagesInternal = new List<ChatRequestMessage>()
             {
-                new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions.")
+                new ChatRequestSystemMessage($"You are a very useful AI assistant who will answer questions.")
             };
         }
 
         public ChatHistory(string prompt)
         {
-            MessagesInternal = new List<ChatMessage>()
+            MessagesInternal = new List<ChatRequestMessage>()
             {
-                new ChatMessage(ChatRole.System, prompt)
+                new ChatRequestSystemMessage(prompt)
             };
         }
 
@@ -41,16 +41,16 @@ namespace OpenAIDemo.Server.Model
 
             var result = 
                 // sum the tokens in each message
-                MessagesInternal.Sum(x => encoding.Encode(x.Content).Count()) + 
+                MessagesInternal.Sum(x => encoding.Encode(x.GetContent()).Count()) + 
                 // add the tokens for the name of each message
-                MessagesInternal.Where(x => !string.IsNullOrWhiteSpace(x.Name)).Count() * tokens_per_name +
+                MessagesInternal.Where(x => !string.IsNullOrWhiteSpace(x.Role.ToString())).Count() * tokens_per_name +
                 // add the tokens for the role of each message
                 MessagesInternal.Count * tokens_per_message;
 
             return result;
         }
 
-        public void AddMessage(ChatMessage message)
+        public void AddMessage(ChatRequestMessage message)
         {
             MessagesInternal.Add(message);
 
@@ -64,7 +64,7 @@ namespace OpenAIDemo.Server.Model
         {
             while (this.CalculateLength() > TokenLimit)
             {
-                Console.WriteLine($"Removing message: {MessagesInternal[1].Content.Substring(0, Math.Min(40, MessagesInternal[1].Content.Length))}");
+                Console.WriteLine($"Removing message: {MessagesInternal[1].GetContent().Substring(0, Math.Min(40, MessagesInternal[1].GetContent().Length))}");
 
                 MessagesInternal.RemoveAt(1);
             }

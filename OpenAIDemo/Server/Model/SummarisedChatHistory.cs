@@ -1,9 +1,8 @@
-﻿using Azure.AI.OpenAI;
-using Azure;
+﻿using Azure;
+using Azure.AI.OpenAI;
 using Microsoft.Extensions.Options;
 using OpenAIDemo.Server.Queuing;
 using System.Text.Json;
-using System.Diagnostics;
 
 namespace OpenAIDemo.Server.Model
 {
@@ -37,13 +36,20 @@ namespace OpenAIDemo.Server.Model
                                representations is all permissible, as long as it, if pasted in a new inference cycle, 
                                will yield near-identical results as the original text:";
 
-                var messages = new List<ChatMessage>
+                var sourceMessages = this.Messages.Take(messagesToReplace)
+                    .Select(x => new
+                    {
+                        Role = x.Role.ToString(),
+                        Content = x.GetContent()
+                    });
+
+                var messages = new List<ChatRequestMessage>
                 {
-                    new ChatMessage(ChatRole.System, prompt),
-                    new ChatMessage(ChatRole.User, JsonSerializer.Serialize(this.Messages.Take(messagesToReplace)))
+                    new ChatRequestSystemMessage(prompt),
+                    new ChatRequestUserMessage(JsonSerializer.Serialize(sourceMessages))
                 };
 
-                var response = await client.GetChatCompletionsAsync(config.OpenAi.ChatEngine, new ChatCompletionsOptions(
+                var response = await client.GetChatCompletionsAsync(new ChatCompletionsOptions(config.OpenAi.ChatEngine,
                                        messages)
                 {
                     Temperature = 0.7f,
@@ -59,9 +65,9 @@ namespace OpenAIDemo.Server.Model
 
                 Console.WriteLine($"New prompt: \r\n{newPrompt}");
 
-                var newMessages = new List<ChatMessage>
+                var newMessages = new List<ChatRequestMessage>
                 {
-                    new ChatMessage(ChatRole.System, newPrompt)
+                    new ChatRequestSystemMessage(newPrompt)
                 };
                 newMessages.AddRange(this.MessagesInternal.Skip(messagesToReplace + 1));
                 
