@@ -5,15 +5,15 @@ namespace OpenAIDemo.Server.Model
 {
     public class ChatHistory
     {
-        private List<ChatMessage> _messages;
+        private List<ChatRequestMessage> _messages;
 
-        public IEnumerable<ChatMessage> Messages => _messages;
+        public IEnumerable<ChatRequestMessage> Messages => _messages;
 
         public ChatHistory()
         {
-            _messages = new List<ChatMessage>()
+            _messages = new List<ChatRequestMessage>()
             {
-                new ChatMessage(ChatRole.System, $"You are a very useful AI assistant who will answer questions.")
+                new ChatRequestSystemMessage($"You are a very useful AI assistant who will answer questions.")
             };
 
             this.ShowLog(_messages[0]);
@@ -21,20 +21,20 @@ namespace OpenAIDemo.Server.Model
 
         public ChatHistory(string prompt)
         {
-            _messages = new List<ChatMessage>()
+            _messages = new List<ChatRequestMessage>()
             {
-                new ChatMessage(ChatRole.System, prompt)
+                new ChatRequestSystemMessage(prompt)
             };
         }
 
-        public void AddMessage(ChatMessage message)
+        public void AddMessage(ChatRequestMessage message)
         {
             _messages.Add(message);
 
             this.ShowLog(message);
         }
 
-        private void ShowLog(ChatMessage message)
+        private void ShowLog(ChatRequestMessage message)
         {
             var forecolor = Console.ForegroundColor;
 
@@ -55,7 +55,7 @@ namespace OpenAIDemo.Server.Model
                 new
                 {
                     Role = message.Role.ToString(), 
-                    Content = message.Content
+                    Content = message.GetContent()
                 }, new JsonSerializerOptions() { WriteIndented = true });
 
             Console.WriteLine(json);
@@ -74,7 +74,7 @@ namespace OpenAIDemo.Server.Model
                 this.Messages.Select(x => new 
                 { 
                     Role = x.Role.ToString(), 
-                    Content = x.Content
+                    Content = x.GetContent()
                 }), new JsonSerializerOptions() { WriteIndented = true });
         }
     }
