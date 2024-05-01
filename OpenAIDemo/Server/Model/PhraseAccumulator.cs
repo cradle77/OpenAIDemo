@@ -2,7 +2,7 @@
 
 namespace OpenAIDemo.Server.Model
 {
-    public class PhraseAccumulator : IAccumulator
+    public class PhraseAccumulator
     {
         string currentPhrase = string.Empty;
         string result = string.Empty;
@@ -15,9 +15,14 @@ namespace OpenAIDemo.Server.Model
 
         public void Append(StreamingChatCompletionsUpdate item)
         {
+            if (item.ContentUpdate == null)
+            {
+                return;
+            }
+
             currentPhrase += item.ContentUpdate;
 
-            if (string.IsNullOrEmpty(item.ContentUpdate) || item.ContentUpdate.Contains("\n"))
+            if (item.ContentUpdate.Contains("\n"))
             {
                 this.Flush();
             }

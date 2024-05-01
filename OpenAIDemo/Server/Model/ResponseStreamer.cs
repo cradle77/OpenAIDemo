@@ -17,28 +17,18 @@ namespace OpenAIDemo.Server.Model
 
         public async IAsyncEnumerable<ChatRequestAssistantMessage> GetPhrases(CancellationToken cancellationToken)
         {
-            IAccumulator accumulator = new NullAccumulator();
+            FunctionAccumulator functionAccumulator = new();
+            PhraseAccumulator phraseAccumulator = new();
 
             await foreach (var item in _sourceStream.WithCancellation(cancellationToken))
             {
-                if (accumulator is NullAccumulator)
-                {
-                    if (item.ToolCallUpdate is StreamingFunctionToolCallUpdate functionToolCallUpdate)
-                    {
-                        accumulator = new FunctionAccumulator();
-                    }
-                    else if (item.ContentUpdate != null)
-                    {
-                        accumulator = new PhraseAccumulator();
-                    }
-                }
-                
-                accumulator.Append(item);
+                functionAccumulator.Append(item);
+                phraseAccumulator.Append(item);
 
-                if (accumulator.HasItem)
+                if (phraseAccumulator.HasItem)
                 {
-                    yield return accumulator.CurrentItem;
-                    accumulator = new NullAccumulator();
+                    yield return phraseAccumulator.CurrentItem;
+                    phraseAccumulator = new PhraseAccumulator();
                 }
 
                 if (item.FinishReason != null)
@@ -47,14 +37,18 @@ namespace OpenAIDemo.Server.Model
                 }
             }
 
-            accumulator.Flush();
+            phraseAccumulator.Flush();
+            functionAccumulator.Flush();
             
-            if (accumulator.HasItem)
+            if (phraseAccumulator.HasItem)
             {
-                yield return accumulator.CurrentItem;
+                yield return phraseAccumulator.CurrentItem;
             }
 
-            this.Result = accumulator.Result;
+            if (functionAccumulator.HasItem)
+            {
+                yield return functionAccumulator.CurrentItem;
+            }
         }
     }
 }
