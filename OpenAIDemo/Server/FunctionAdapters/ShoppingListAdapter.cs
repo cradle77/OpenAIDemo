@@ -20,9 +20,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "add-shopping-list-item";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This function allows the management of a shopping list, and allows the user to add an item to his current shopping list. It returns the current content of the shopping list. If the user asks to add an item, and the item is already in the shopping list, this should result in modify-shopping-list-item to be called instead with an updated quantity.",
@@ -47,7 +47,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             };
         }
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
             var todo = JsonSerializer.Deserialize<ShoppingListItem>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
@@ -58,12 +58,10 @@ namespace OpenAIDemo.Server.FunctionAdapters
 
             ShoppingList.Instance.Items.Add(todo);
 
-            return new ChatMessage()
-            {
-                Role = ChatRole.Function,
-                Name = this.FunctionName,
-                Content = JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            return new ChatRequestToolMessage(
+                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                id
+                );
         }
     }
 
@@ -71,9 +69,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "get-shopping-list";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This function returns the most updated content of the shopping list in a JSON array format",
@@ -93,14 +91,12 @@ namespace OpenAIDemo.Server.FunctionAdapters
             };
         }
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
-            return new ChatMessage() 
-            {
-                Role = ChatRole.Function,
-                Name = this.FunctionName,
-                Content = JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            return new ChatRequestToolMessage(
+                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                id
+                );
         }
     }
 
@@ -108,9 +104,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "modify-shopping-list-item";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This function allows to modify or remove an item from the shopping list. The description field must be exactly the same as one of the items in the shopping list. The quantity field must be set to 0 in case of removal. It returns the current content of the shopping list. If the user asks to add an item, and the item is already in the shopping list, this should result in modify to be called instead with an updated quantity.",
@@ -135,7 +131,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             };
         }
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
             var todo = JsonSerializer.Deserialize<ShoppingListItem>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
@@ -148,17 +144,14 @@ namespace OpenAIDemo.Server.FunctionAdapters
                 var item = ShoppingList.Instance.Items.FirstOrDefault(x => x.Description == todo.Description);
                 if (item == null)
                 {
-                    return new ChatMessage(ChatRole.Function, $"Item {todo.Description} not found") { Name = this.FunctionName };
+                    return new ChatRequestToolMessage(id, $"Item {todo.Description} not found");
                 }
                 item.Quantity = todo.Quantity;
             }
 
-            return new ChatMessage()
-            {
-                Role = ChatRole.Function,
-                Name = this.FunctionName,
-                Content = JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            return new ChatRequestToolMessage(
+                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                id);
         }
     }
 }

@@ -8,9 +8,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "get-weather";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "Gets the weather forecasts for a given city for the specified dates. Ignore the temperatures in Farheneit in your responses, unless explicitly asked",
@@ -47,25 +47,32 @@ namespace OpenAIDemo.Server.FunctionAdapters
             "Clear", "Partly Cloudy", "Overcast", "Rainy", "Thunderstorms", "Windy"
         };
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
-            var parameters = JsonSerializer.Deserialize<WeatherQuery>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            string result = null;
 
-            var forecasts = Enumerable.Range(0, parameters.NumberOfDays).Select(index => new WeatherForecast
+            try
             {
-                Date = DateOnly.FromDateTime(parameters.StartDate.GetValueOrDefault(DateTime.Today).AddDays(index)),
-                TemperatureC = Random.Shared.Next(-20, 55),
-                Summary = Summaries[Random.Shared.Next(Summaries.Length)]
-            })
-            .ToArray();
+                var parameters = JsonSerializer.Deserialize<WeatherQuery>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-            return new ChatMessage(ChatRole.Function,
-                JsonSerializer.Serialize(
-                    forecasts,
-                    new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }))
-                    { 
-                        Name = this.FunctionName
-                    };
+                var forecasts = Enumerable.Range(0, parameters.NumberOfDays).Select(index => new WeatherForecast
+                {
+                    Date = DateOnly.FromDateTime(parameters.StartDate.GetValueOrDefault(DateTime.Today).AddDays(index)),
+                    TemperatureC = Random.Shared.Next(15, 25),
+                    Summary = Summaries[Random.Shared.Next(Summaries.Length)]
+                })
+                .ToArray();
+
+                result = JsonSerializer.Serialize(
+                        forecasts,
+                        new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            }
+            catch (Exception)
+            {
+                result = "Sorry, I couldn't get the weather for you. Check if the parameters are correct and try again if they aren't.";
+            }
+
+            return new ChatRequestToolMessage(result, id);
         }
     }
 
