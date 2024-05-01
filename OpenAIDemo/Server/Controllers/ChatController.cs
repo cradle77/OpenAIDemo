@@ -45,9 +45,9 @@ namespace OpenAIDemo.Server.Controllers
 
             OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatMessage(ChatRole.User, message));
+            history.AddMessage(new ChatRequestUserMessage(message));
 
-            var response = await client.GetChatCompletionsAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
+            var response = await client.GetChatCompletionsAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
             history.Messages)
             {
                 Temperature = 0.7f,
@@ -60,7 +60,7 @@ namespace OpenAIDemo.Server.Controllers
 
             var responseMessage = choice.Message;
 
-            history.AddMessage(responseMessage);
+            history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
 
             Console.WriteLine(history);
 
@@ -74,28 +74,25 @@ namespace OpenAIDemo.Server.Controllers
 
             OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatMessage(ChatRole.User, message));
+            history.AddMessage(new ChatRequestUserMessage(message));
 
-            var response = await client.GetChatCompletionsStreamingAsync(_config.OpenAi.ChatEngine, new ChatCompletionsOptions(
+            var response = await client.GetChatCompletionsStreamingAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
                 history.Messages)
             {
                 Temperature = 0.7f,
                 MaxTokens = 500,
             }, token);
 
-            StreamingChatChoice choice = await response.Value.GetChoicesStreaming().FirstAsync();
-
-            var responseMessages = choice.GetMessageStreaming();
             var fullResponse = string.Empty;
 
-            await foreach (var responseMessage in responseMessages)
+            await foreach (StreamingChatCompletionsUpdate responseMessage in response)
             {
-                Console.WriteLine($"Response: {responseMessage.Content}");
-                fullResponse += responseMessage.Content;
-                yield return responseMessage.Content;
+                Console.WriteLine($"Response: {responseMessage.ContentUpdate}");
+                fullResponse += responseMessage.ContentUpdate;
+                yield return responseMessage.ContentUpdate;
             }
 
-            history.AddMessage(new ChatMessage(ChatRole.Assistant, fullResponse));
+            history.AddMessage(new ChatRequestAssistantMessage(fullResponse));
 
             Console.WriteLine(history);
         }
