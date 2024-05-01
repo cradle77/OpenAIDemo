@@ -53,6 +53,7 @@ namespace OpenAIDemo.Server.Controllers
             history.AddMessage(new ChatRequestUserMessage(message));
 
             ChatChoice choice;
+            string result = string.Empty;
 
             do
             {
@@ -70,27 +71,36 @@ namespace OpenAIDemo.Server.Controllers
 
                 choice = response.Value.Choices.First();
 
-                ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
-
-                history.AddMessage(toolCallHistoryMessage);
-
-                if (choice.FinishReason == CompletionsFinishReason.ToolCalls)
+                if (choice.Message.Content != null)
                 {
+                    var responseMessage = choice.Message;
+
+                    history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
+
+                    result += choice.Message.Content;
+                }
+
+                if (choice.Message.ToolCalls.Any())
+                {
+                    ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
+
+                    history.AddMessage(toolCallHistoryMessage);
+
+                    Console.WriteLine($"Number of tool calls: {choice.Message.ToolCalls.Count}");
+
                     foreach (var toolCall in choice.Message.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
                     {
                         history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
                     }
                 }
             }
-            while (choice.FinishReason == CompletionsFinishReason.ToolCalls);
+            while (choice.FinishReason != CompletionsFinishReason.Stopped);
 
-            var responseMessage = choice.Message;
-
-            history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
+            history.AddMessage(new ChatRequestAssistantMessage(result));
 
             Console.WriteLine(history);
 
-            return Ok(responseMessage.Content);
+            return Ok(result);
         }
 
         [HttpPost("{sessionId}/message-stream")]
@@ -116,32 +126,32 @@ namespace OpenAIDemo.Server.Controllers
 
                 var response = await client.GetChatCompletionsStreamingAsync(options, token);
 
-                var phraseStreamer = new ResponseStreamer(response);
+                var responseStreamer = new ResponseStreamer(response);
 
-                await foreach (var phrase in phraseStreamer.GetPhrases(token))
+                await foreach (var streamedResponse  in responseStreamer.GetPhrases(token))
                 {
-                    if (phrase.ToolCalls.Any())
+                    if (streamedResponse.ToolCalls.Any())
                     {
-                        history.AddMessage(phrase);
+                        history.AddMessage(streamedResponse);
 
-                        foreach (var toolCall in phrase.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                        foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
                         {
                             history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"Response: {phrase.Content}");
-                        yield return phrase.Content;
+                        Console.WriteLine($"Response: {streamedResponse.Content}");
+                        yield return streamedResponse.Content;
                     }                    
                 }
 
-                if (phraseStreamer.Result != null)
+                if (responseStreamer.Result != null)
                 {
-                    history.AddMessage(phraseStreamer.Result);
+                    history.AddMessage(responseStreamer.Result);
                 }
 
-                finishReason = phraseStreamer.FinishReason;
+                finishReason = responseStreamer.FinishReason;
 
             }
             while (finishReason != CompletionsFinishReason.Stopped);
