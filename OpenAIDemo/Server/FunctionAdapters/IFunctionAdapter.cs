@@ -6,8 +6,8 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         string FunctionName { get; }
 
-        FunctionDefinition GetFunctionDefinition();
+        ChatCompletionsFunctionToolDefinition GetFunctionDefinition();
 
-        Task<ChatMessage> InvokeAsync(string arguments);
+        Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments);
     }
 }

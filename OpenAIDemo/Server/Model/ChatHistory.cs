@@ -16,10 +16,8 @@ namespace OpenAIDemo.Server.Model
         {
             _messages = new List<ChatRequestMessage>()
             {
-                new ChatRequestSystemMessage($"You are a very useful AI assistant who will answer questions. Optimise your answers for a speech engine")
+                new ChatRequestSystemMessage($"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.")
             };
-
-            this.ShowLog(_messages[0]);
         }
 
         public ChatHistory(string prompt)
@@ -44,7 +42,7 @@ namespace OpenAIDemo.Server.Model
 
             var result =
                 // sum the tokens in each message
-                _messages.Sum(x => encoding.Encode(x.GetContent()).Count()) +
+                _messages.Sum(x => encoding.Encode(x.GetContent() ?? string.Empty).Count()) +
                 // add the tokens for the name of each message
                 _messages.Where(x => !string.IsNullOrWhiteSpace(x.Role.ToString())).Count() * tokens_per_name +
                 // add the tokens for the role of each message

@@ -8,9 +8,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "get-weather";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "Gets the weather forecasts for a given city for the specified dates. Ignore the temperatures in Farheneit in your responses, unless explicitly asked",
@@ -47,7 +47,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             "Clear", "Partly Cloudy", "Overcast", "Rainy", "Thunderstorms", "Windy"
         };
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
             string result = null;
 
@@ -72,10 +72,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
                 result = "Sorry, I couldn't get the weather for you. Check if the parameters are correct and try again if they aren't.";
             }
 
-            return new ChatMessage(ChatRole.Function, result)
-            {
-                Name = this.FunctionName
-            };
+            return new ChatRequestToolMessage(result, id);
         }
     }
 
