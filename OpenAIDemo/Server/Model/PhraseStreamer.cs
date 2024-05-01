@@ -4,49 +4,43 @@ namespace OpenAIDemo.Server.Model
 {
     public class PhraseStreamer
     {
-        private IAsyncEnumerable<ChatMessage> _sourceStream;
+        private IAsyncEnumerable<StreamingChatCompletionsUpdate> _sourceStream;
 
-        public PhraseStreamer(IAsyncEnumerable<ChatMessage> sourceStream)
+        public PhraseStreamer(IAsyncEnumerable<StreamingChatCompletionsUpdate> sourceStream)
         {
             _sourceStream = sourceStream;
         }
 
-        public ChatMessage Result { get; private set; }
+        public ChatRequestAssistantMessage Result { get; private set; }
 
-        public async IAsyncEnumerable<ChatMessage> GetPhrases(CancellationToken cancellationToken)
+        public async IAsyncEnumerable<ChatRequestAssistantMessage> GetPhrases(CancellationToken cancellationToken)
         {
-            var message = new ChatMessage();
-            this.Result = new ChatMessage();
+            string currentPhrase = string.Empty;
+            string result = string.Empty;
 
             await foreach (var item in _sourceStream.WithCancellation(cancellationToken))
             {
-                if (item.Role != string.Empty)
-                {
-                    this.Result.Role = item.Role;
-                    this.Result.Name = item.Name;
-                }
+                currentPhrase += item.ContentUpdate;
 
-                message.Role = item.Role;
-                message.Name = item.Name;
-                message.Content += item.Content;
-
-                if (string.IsNullOrEmpty(item.Content) || item.Content.Contains("\n"))
+                if (string.IsNullOrEmpty(item.ContentUpdate) || item.ContentUpdate.Contains("\n"))
                 {
-                    if (!string.IsNullOrWhiteSpace(message.Content))
+                    if (!string.IsNullOrWhiteSpace(currentPhrase))
                     {
-                        yield return message;
+                        yield return new ChatRequestAssistantMessage(currentPhrase);
                     }
 
-                    this.Result.Content += message.Content;
-                    message = new ChatMessage();
+                    result += currentPhrase;
+                    currentPhrase = string.Empty;
                 }
             }
 
-            if (!string.IsNullOrEmpty(message.Name))
+            if (!string.IsNullOrEmpty(currentPhrase))
             {
-                this.Result.Content += message.Content;
-                yield return message;
+                result += currentPhrase;
+                yield return new ChatRequestAssistantMessage(currentPhrase);
             }
+
+            this.Result = new ChatRequestAssistantMessage(result);
         }
     }
 }

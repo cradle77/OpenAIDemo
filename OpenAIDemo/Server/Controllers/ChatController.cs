@@ -88,6 +88,7 @@ namespace OpenAIDemo.Server.Controllers
             await foreach (StreamingChatCompletionsUpdate responseMessage in response)
             {
                 Console.WriteLine($"Response: {responseMessage.ContentUpdate}");
+
                 fullResponse += responseMessage.ContentUpdate;
                 yield return responseMessage.ContentUpdate;
             }
