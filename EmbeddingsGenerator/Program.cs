@@ -42,8 +42,8 @@ async Task QueryIndexAsync()
 
         // calculating embeddings of the query
 
-        var openAiResponse = await openAiclient.GetEmbeddingsAsync(engine,
-                new EmbeddingsOptions(query));
+        var openAiResponse = await openAiclient.GetEmbeddingsAsync(
+                new EmbeddingsOptions(engine, new[] { query }));
 
         var queryEmbeddings = openAiResponse.Value.Data[0].Embedding;
 
@@ -140,8 +140,8 @@ async void CreateIndexAsync()
             Console.WriteLine($"Calculating batch {++i}");
             var inputs = batch.ToList();
 
-            var result = await client.GetEmbeddingsAsync(engine,
-                new EmbeddingsOptions(batch.Select(x => x.GetEmbeddingInput())));
+            var result = await client.GetEmbeddingsAsync(
+                new EmbeddingsOptions(engine, batch.Select(x => x.GetEmbeddingInput())));
 
             foreach (var itemResult in result.Value.Data)
             {
