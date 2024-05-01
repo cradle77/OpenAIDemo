@@ -7,9 +7,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "hotels-book";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This allows you to book a hotel. It returns a JSON containing the booking confirmation number.",
@@ -46,18 +46,14 @@ namespace OpenAIDemo.Server.FunctionAdapters
             };
         }
 
-        public Task<ChatMessage> InvokeAsync(string arguments)
+        public Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
-            return Task.FromResult(new ChatMessage()
-            {
-                Role = ChatRole.Function,
-                Name = this.FunctionName,
-                Content = JsonSerializer.Serialize(new
+            return Task.FromResult(new ChatRequestToolMessage(
+                JsonSerializer.Serialize(new
                 {
                     ConfirmationNumber = "ABC123",
                     Text = "Your booking is confirmed"
-                })
-            });
+                }), id));
         }
     }
 }
