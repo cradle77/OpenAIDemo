@@ -4,9 +4,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
 {
     public interface IFunctionHandler
     {
-        Task<ChatMessage> ExecuteFunctionCallAsync(FunctionCall request);
+        Task<ChatRequestToolMessage> ExecuteCallAsync(ChatCompletionsFunctionToolCall request);
 
-        IEnumerable<FunctionDefinition> GetFunctionDefinitions();
+        IEnumerable<ChatCompletionsFunctionToolDefinition> GetFunctionDefinitions();
     }
 
     internal class FunctionHandler : IFunctionHandler
@@ -18,7 +18,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             _adapters = adapters.ToDictionary(a => a.FunctionName);
         }
 
-        public async Task<ChatMessage> ExecuteFunctionCallAsync(FunctionCall request)
+        public async Task<ChatRequestToolMessage> ExecuteCallAsync(ChatCompletionsFunctionToolCall request)
         {
             if (!_adapters.ContainsKey(request.Name))
             {
@@ -27,14 +27,14 @@ namespace OpenAIDemo.Server.FunctionAdapters
 
             Console.WriteLine($"Executing function {request.Name} with arguments {request.Arguments}");
 
-            var result = await _adapters[request.Name].InvokeAsync(request.Arguments);
+            var result = await _adapters[request.Name].InvokeAsync(request.Id, request.Arguments);
 
             Console.WriteLine($"Function {request.Name} returned {result.Content}");
 
             return result;
         }
 
-        public IEnumerable<FunctionDefinition> GetFunctionDefinitions()
+        public IEnumerable<ChatCompletionsFunctionToolDefinition> GetFunctionDefinitions()
         {
             return _adapters.Values.Select(a => a.GetFunctionDefinition());
         }

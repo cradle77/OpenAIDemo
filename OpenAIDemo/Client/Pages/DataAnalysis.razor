@@ -105,13 +105,16 @@
 
         await UpdateStatusAsync("Upload completed! Starting analysis...", chatVisible: true);
 
-        response = await Http.PatchAsync($"api/analysis/{chatSession.Id}/files/{fileName}", null);
-        response.EnsureSuccessStatusCode();
-        var responseMessage = await response.Content.ReadAsStringAsync();
+        IAsyncEnumerable<string> items =
+                this.Http.SendAndGetStreamAsync<string>(HttpMethod.Patch, $"api/analysis/{chatSession.Id}/files/{fileName}", null);
 
-        chatMessage.Content = responseMessage;
-        this.StateHasChanged();
-        await ScrollToBottom();
+        chatMessage.Content = string.Empty;
+        await foreach (string item in items)
+        {
+            chatMessage.Content += item;
+            this.StateHasChanged();
+            await ScrollToBottom();
+        }
     }
 
     private async Task SendMessageAsync()
@@ -128,13 +131,18 @@
             messages.Add(chatMessage);
             this.StateHasChanged();
 
-            var response = await Http.PostAsJsonAsync<string>($"api/analysis/{chatSession.Id}/message", text);
-            response.EnsureSuccessStatusCode();
-            var responseMessage = await response.Content.ReadAsStringAsync();
+            var content = JsonContent.Create(text);
 
-            chatMessage.Content = responseMessage;
-            this.StateHasChanged();
-            await ScrollToBottom();
+            IAsyncEnumerable<string> items =
+                this.Http.PostAndGetStreamAsync<string>($"api/analysis/{chatSession.Id}/message", content);
+
+            chatMessage.Content = string.Empty;
+            await foreach (string item in items)
+            {
+                chatMessage.Content += item;
+                this.StateHasChanged();
+                await ScrollToBottom();
+            }
         }
     }
 

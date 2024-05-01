@@ -46,9 +46,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
             _engine = _config.OpenAi.EmbedEngine;
         }
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This function queries a search engine for hotel reviews. It accepts a full text query string. If the query text is not in English, you need to translate it to English before using it.",
@@ -73,15 +73,15 @@ namespace OpenAIDemo.Server.FunctionAdapters
             };
         }
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
             var query = JsonSerializer.Deserialize<HotelQuery>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
             var searchClient = new SearchClient(_searchUrl, _indexName, _searchCredential);
             OpenAIClient openAiclient = new(new Uri(_openAiEndpoint), new AzureKeyCredential(_openAiKey));
 
-            var openAiResponse = await openAiclient.GetEmbeddingsAsync(_engine,
-                new EmbeddingsOptions(query.QueryText));
+            var openAiResponse = await openAiclient.GetEmbeddingsAsync(
+                new EmbeddingsOptions(_engine, new[] { query.QueryText }));
 
             var queryEmbeddings = openAiResponse.Value.Data[0].Embedding;
 
@@ -103,12 +103,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     ReviewText = x.Document["reviewText"] as string
                 }).ToListAsync();
 
-            return new ChatMessage()
-            {
-                Role = ChatRole.Function,
-                Name = this.FunctionName,
-                Content = JsonSerializer.Serialize(results, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            return new ChatRequestToolMessage(
+                JsonSerializer.Serialize(results, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+                , id);
         }
     }
 }

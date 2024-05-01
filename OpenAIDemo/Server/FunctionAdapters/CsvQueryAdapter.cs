@@ -21,17 +21,12 @@ namespace OpenAIDemo.Server.FunctionAdapters
 
         public string FunctionName => "query-file";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
-                Description = @"This function allows you to execute a SQL query over a specified file and will return the resultset. 
-The table name is always [TableName]. Do not specify the schema. You also need to pass the filename.
-
-The database is SQL Server, so always use standard T-SQL.
-
-Data could potentially contain a big number of rows, so make sure all your queries are properly limited (never exceed 20 rows)",
+                Description = "This function allows you to execute a SQL query over a specified file and will return the resultset. The table name is always [TableName]. Do not specify the schema. You also need to pass the filename.",
                 Parameters = BinaryData.FromObjectAsJson(new
                 {
                     Type = "object",
@@ -45,7 +40,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
                         SqlQuery = new
                         {
                             Type = "string",
-                            Description = "The query you want to execute over the file. The table name is always [TableName] without the schema. Important: the query must be in standard T-SQL. Make sure the query is always limited (no more than 20 results).",
+                            Description = "The query you want to execute over the file. The table name is always [TableName] without the schema. Important: the query must be in standard T-SQL.",
                             Example = "SELECT TOP 10 * from [TableName] ORDER BY Date DESC",
                         },
                     },
@@ -54,7 +49,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
             };
         }
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
             try
             {
@@ -85,35 +80,19 @@ Data could potentially contain a big number of rows, so make sure all your queri
                     var token = credential.GetToken(new Azure.Core.TokenRequestContext(new[] { "https://database.windows.net/.default" }), cancellationToken);
                     connection.AccessToken = token.Token;
 
-                    var queryResult = await connection.QueryAsync(query, commandTimeout: 60);
+                    var queryResult = (await connection.QueryAsync(query, commandTimeout: 60))
+                        .Take(100); // enforce max 100 rows
 
-                    return new ChatMessage()
-                    {
-                        Role = ChatRole.Function,
-                        Name = this.FunctionName,
-                        Content = JsonSerializer.Serialize(queryResult, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-                    };
+                    return new ChatRequestToolMessage(
+                        JsonSerializer.Serialize(queryResult, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                        id);
                 }
-            }
-            catch (SqlException ex)
-            {
-                Console.WriteLine(ex);
-                return new ChatMessage()
-                {
-                    Role = ChatRole.Function,
-                    Name = this.FunctionName,
-                    Content = "there was an error running the function, please remember to always use standard and basic T-SQL and that the name of the table is always [TableName], not the file name"
-                };
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                return new ChatMessage()
-                {
-                    Role = ChatRole.Function,
-                    Name = this.FunctionName,
-                    Content = "there was an error running the function, please try again"
-                };
+                return new ChatRequestToolMessage(
+                    "there was an error running the function, try again and make sure you are using valid T-SQL", id);
             }
         }
 

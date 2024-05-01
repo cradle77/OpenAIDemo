@@ -19,14 +19,11 @@ namespace OpenAIDemo.Server.Controllers
         private AzureConfig _config;
         private static Dictionary<Guid, ChatHistory> _sessions = new Dictionary<Guid, ChatHistory>();
         private IFunctionHandler _functionHandler;
-        private string _engine;
 
         public AnalysisController(IOptions<AzureConfig> config, IFunctionHandler functionHandler)
         {
             _config = config.Value;
             _functionHandler = functionHandler;
-            _engine = "gpt4-des";
-            //_engine = _config.OpenAi.ChatEngine;
         }
 
         [HttpPost()]
@@ -47,11 +44,11 @@ Only return the insight text after you have calculated it, without giving interm
 
 The database is SQL Server, so always use standard T-SQL.
 
-Data could potentially contain a big number of rows, so make sure all your queries are properly limited (never exceed 20 rows)";
+Data could potentially contain a big number of rows, so make sure all your queries are properly limited (max 100 rows)";
 
             var sessionId = Guid.NewGuid();
 
-            _sessions.Add(sessionId, new ChatHistory(prompt, tokenLimit:8000));
+            _sessions.Add(sessionId, new ChatHistory(prompt));
             return Ok(new ChatSession() { Id = sessionId });
         }
 
@@ -93,17 +90,16 @@ Data could potentially contain a big number of rows, so make sure all your queri
         }
 
         [HttpPatch("{sessionId}/files/{fileName}")]
-        public async Task<IActionResult> UploadCompletedAsync(Guid sessionId, string fileName)
+        public async IAsyncEnumerable<string> UploadCompletedAsync(Guid sessionId, string fileName)
         {
-            if (!_sessions.ContainsKey(sessionId))
-            {
-                return NotFound();
-            }
             var history = _sessions[sessionId];
+
+            // Enter the deployment name you chose when you deployed the model.
+            string engine = "gpt4-des";
 
             OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatMessage(ChatRole.User, $"The file name is {fileName}"));
+            history.AddMessage(new ChatRequestUserMessage($"The file name is {fileName}"));
 
             string result = string.Empty;
 
@@ -111,50 +107,59 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
             do
             {
-                var response = await client.GetChatCompletionsAsync(_engine, new ChatCompletionsOptions(
+                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
                 history.Messages)
                 {
-                    Temperature = 0f,
-                    MaxTokens = 2000,
-                    Functions = _functionHandler.GetFunctionDefinitions().ToList()
-                });
+                    Temperature = 0.7f,
+                    MaxTokens = 500,
+                };
+                options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
+
+                var response = await client.GetChatCompletionsAsync(options);
 
                 Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
 
                 choice = response.Value.Choices.First();
 
-                if (choice.FinishReason == CompletionsFinishReason.FunctionCall)
-                {
-                    history.AddMessage(await _functionHandler.ExecuteFunctionCallAsync(choice.Message.FunctionCall));
-                }
-                else
+                if (choice.Message.Content != null)
                 {
                     var responseMessage = choice.Message;
 
-                    history.AddMessage(responseMessage);
+                    history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
 
                     result += choice.Message.Content;
+
+                    yield return choice.Message.Content;
+                }
+
+                if (choice.Message.ToolCalls.Any())
+                {
+                    ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
+
+                    history.AddMessage(toolCallHistoryMessage);
+
+                    foreach (var toolCall in choice.Message.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                    {
+                        history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                    }
                 }
             }
             while (choice.FinishReason != CompletionsFinishReason.Stopped);
 
             Console.WriteLine(history);
-
-            return Ok(result);
         }
 
         [HttpPost("{sessionId}/message")]
-        public async Task<IActionResult> PostMessage(Guid sessionId, [FromBody] string message)
+        public async IAsyncEnumerable<string> PostMessage(Guid sessionId, [FromBody] string message)
         {
-            if (!_sessions.ContainsKey(sessionId))
-            {
-                return NotFound();
-            }
             var history = _sessions[sessionId];
+
+            // Enter the deployment name you chose when you deployed the model.
+            string engine = "gpt4-des";
 
             OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatMessage(ChatRole.User, message));
+            history.AddMessage(new ChatRequestUserMessage(message));
 
             string result = string.Empty;
 
@@ -162,36 +167,46 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
             do
             {
-                var response = await client.GetChatCompletionsAsync(_engine, new ChatCompletionsOptions(
+                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
                 history.Messages)
                 {
-                    Temperature = 0f,
-                    MaxTokens = 2000,
-                    Functions = _functionHandler.GetFunctionDefinitions().ToList()
-                });
+                    Temperature = 0.7f,
+                    MaxTokens = 500,
+                };
+                options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
+
+                var response = await client.GetChatCompletionsAsync(options);
 
                 Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
 
                 choice = response.Value.Choices.First();
 
-                if (choice.FinishReason == CompletionsFinishReason.FunctionCall)
-                {
-                    history.AddMessage(await _functionHandler.ExecuteFunctionCallAsync(choice.Message.FunctionCall));
-                }
-                else
+                if (choice.Message.Content != null)
                 {
                     var responseMessage = choice.Message;
 
-                    history.AddMessage(responseMessage);
+                    history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
 
                     result += choice.Message.Content;
+
+                    yield return choice.Message.Content;
+                }
+
+                if (choice.Message.ToolCalls.Any())
+                {
+                    ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
+
+                    history.AddMessage(toolCallHistoryMessage);
+
+                    foreach (var toolCall in choice.Message.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                    {
+                        history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                    }
                 }
             }
             while (choice.FinishReason != CompletionsFinishReason.Stopped);
 
             Console.WriteLine(history);
-
-            return Ok(result);
         }
     }
 }
