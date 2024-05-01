@@ -34,7 +34,7 @@ namespace OpenAIDemo.Server.Controllers
              You need to invoke the hotel-review function to store the review details.";
 
             var history = new ChatHistory(prompt);
-            history.AddMessage(new ChatMessage(ChatRole.User, $"The review text is: ```{reviewText}```"));
+            history.AddMessage(new ChatRequestUserMessage($"The review text is: ```{reviewText}```"));
 
             // Enter the deployment name you chose when you deployed the model.
             string engine = "gpt4-des";
@@ -43,22 +43,29 @@ namespace OpenAIDemo.Server.Controllers
 
             ChatChoice choice;
 
-            var response = await client.GetChatCompletionsAsync(engine, new ChatCompletionsOptions(
+            var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
                 history.Messages)
             {
-                Temperature = 0f,
-                MaxTokens = 2000,
-                Functions = new List<FunctionDefinition>() { _provider.GetFunctionDefinition() },
-                FunctionCall = _provider.GetFunctionDefinition()
-            });
+                Temperature = 0.7f,
+                MaxTokens = 500,
+                Tools = { _provider.GetFunctionDefinition() },
+                ToolChoice = _provider.GetFunctionDefinition()
+            };
+
+            var response = await client.GetChatCompletionsAsync(options);
 
             Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
 
             choice = response.Value.Choices.First();
 
-            if (choice.Message.FunctionCall != null)
+            var toolCall = choice.Message
+                .ToolCalls
+                .OfType<ChatCompletionsFunctionToolCall>()
+                .SingleOrDefault();
+
+            if (toolCall != null)
             {
-                var result = _provider.GetResponse(choice.Message.FunctionCall.Arguments);
+                var result = _provider.GetResponse(toolCall.Arguments);
 
                 return this.Ok(result);
             }

@@ -8,9 +8,9 @@ namespace OpenAIDemo.Server.InferenceProviders
     {
         public string FunctionName => "hotel-review";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This function is used to store details of a review. Positive and Negative notes must have at most 3 elements each and must be in English.",

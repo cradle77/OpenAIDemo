@@ -6,7 +6,7 @@ namespace OpenAIDemo.Server.InferenceProviders
     {
         string FunctionName { get; }
 
-        FunctionDefinition GetFunctionDefinition();
+        ChatCompletionsFunctionToolDefinition GetFunctionDefinition();
 
         T GetResponse(string arguments);
     }
