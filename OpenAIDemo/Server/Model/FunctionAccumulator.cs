@@ -2,52 +2,62 @@
 
 namespace OpenAIDemo.Server.Model
 {
-    public class FunctionAccumulator : IAccumulator
+    public class FunctionAccumulator
     {
-        private string functionId;
-        private string functionName;
-        private string arguments;
+        private record FunctionCallDetails
+        {
+            public string Id { get; set; }
+            public string Name { get; set; }
+            public string Arguments { get; set; }
+        }
+
+        private Dictionary<int, FunctionCallDetails> functions = new Dictionary<int, FunctionCallDetails>();
 
         public bool HasItem { get; private set; }
 
         public ChatRequestAssistantMessage CurrentItem { get; private set; }
 
-        public ChatRequestAssistantMessage Result => null;
-
         public void Append(StreamingChatCompletionsUpdate item)
         {
             if (item.ToolCallUpdate is StreamingFunctionToolCallUpdate functionToolCallUpdate)
             {
+                if (!functions.ContainsKey(functionToolCallUpdate.ToolCallIndex))
+                {
+                    functions[functionToolCallUpdate.ToolCallIndex] = new FunctionCallDetails();
+                }
+                
                 if (functionToolCallUpdate.Id != null)
                 {
-                    this.functionId = functionToolCallUpdate.Id;
+                    functions[functionToolCallUpdate.ToolCallIndex].Id = functionToolCallUpdate.Id;
                 }
                 if (functionToolCallUpdate.Name != null)
                 {
-                    this.functionName = functionToolCallUpdate.Name;
+                    functions[functionToolCallUpdate.ToolCallIndex].Name = functionToolCallUpdate.Name;
                 }
                 if (functionToolCallUpdate.ArgumentsUpdate != null)
                 {
-                    arguments += functionToolCallUpdate.ArgumentsUpdate;
+                    functions[functionToolCallUpdate.ToolCallIndex].Arguments += functionToolCallUpdate.ArgumentsUpdate;
                 }
             }
         }
 
         public void Flush()
         {
+            if (functions.Count == 0)
+            {
+                this.HasItem = false;
+                return;
+            }
+
             this.HasItem = true;
 
-            this.CurrentItem = new ChatRequestAssistantMessage(string.Empty)
+            this.CurrentItem = new ChatRequestAssistantMessage(string.Empty);
+            foreach (var function in functions.Values)
             {
-                ToolCalls =
-                {
-                    new ChatCompletionsFunctionToolCall(this.functionId, this.functionName, this.arguments)
-                }
-            };
-
-            this.functionId = null;
-            this.functionName = null;
-            this.arguments = string.Empty;
+                this.CurrentItem.ToolCalls.Add(new ChatCompletionsFunctionToolCall(function.Id, function.Name, function.Arguments));
+            }
+            
+            this.functions = new Dictionary<int, FunctionCallDetails>();
         }
     }
 }
