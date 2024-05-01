@@ -4,9 +4,7 @@ using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 using OpenAIDemo.Server.Model;
-using OpenAIDemo.Shared;
 using System.Text.Json;
-using System.Threading;
 
 namespace OpenAIDemo.Server.FunctionAdapters
 {
@@ -21,9 +19,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
 
         public string FunctionName => "get-file-columns";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This function returns the column names and their types of the file to analyse. For each column, also the data type is returned.",
@@ -43,57 +41,64 @@ namespace OpenAIDemo.Server.FunctionAdapters
             };
         }
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
-            var file = JsonSerializer.Deserialize<FileQuery>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
-
-            var fileName = file.FileName;
-
-            string filePath = $"abfss://datafiles@desdatademo.dfs.core.windows.net/raw/{fileName}";
-
-            string sp = "sp_describe_first_result_set";
-
-            string query = $@"SELECT TOP 100 * FROM OPENROWSET (
-                BULK '{filePath}'
-               ,FORMAT = 'CSV'
-               ,PARSER_VERSION = '2.0'   
-	           ,HEADER_ROW = TRUE
-            ) AS[r]; ";
-
-            var param = new
+            try
             {
-                tsql = query
-            };
+                var file = JsonSerializer.Deserialize<FileQuery>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
-            using (var connection = new SqlConnection(_config.Synapse.DbConnectionString))
-            {
-                var credential = new VisualStudioCredential(
-                    new VisualStudioCredentialOptions
-                    {
-                        TenantId = _config.TenantId
-                    });
+                var fileName = file.FileName;
 
-                var cancellationToken = new CancellationTokenSource().Token;
-                var token = credential.GetToken(new Azure.Core.TokenRequestContext(new[] { "https://database.windows.net/.default" }), cancellationToken);
-                connection.AccessToken = token.Token;
+                string filePath = $"abfss://datafiles@desdatademo.dfs.core.windows.net/raw/{fileName}";
 
-                var queryResult = await connection.QueryAsync(sp, param, transaction:null, commandTimeout:60, commandType:System.Data.CommandType.StoredProcedure);
+                string sp = "sp_describe_first_result_set";
 
-                List<FileMetadataEntity> result = queryResult
-                    .Select(x => new FileMetadataEntity
+                string query = $@"SELECT TOP 100 * FROM OPENROWSET (
+                    BULK '{filePath}'
+                    ,FORMAT = 'CSV'
+                    ,PARSER_VERSION = '2.0'   
+	                ,HEADER_ROW = TRUE
+                ) AS[r]; ";
+
+                var param = new
                 {
-                    ColumnName = x.name.ToString(),
-                    Type = x.system_type_name.ToString()
-                        //Order = (int)x.column_ordinal
-                    }).ToList();
-
-                return new ChatMessage()
-                {
-                    Role = ChatRole.Function,
-                    Name = this.FunctionName,
-                    Content = JsonSerializer.Serialize(result, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+                    tsql = query
                 };
+
+                using (var connection = new SqlConnection(_config.Synapse.DbConnectionString))
+                {
+                    var credential = new VisualStudioCredential(
+                        new VisualStudioCredentialOptions
+                        {
+                            TenantId = _config.TenantId
+                        });
+
+                    var cancellationToken = new CancellationTokenSource().Token;
+                    var token = credential.GetToken(new Azure.Core.TokenRequestContext(new[] { "https://database.windows.net/.default" }), cancellationToken);
+                    connection.AccessToken = token.Token;
+
+                    var queryResult = await connection.QueryAsync(sp, param, transaction: null, commandTimeout: 60, commandType: System.Data.CommandType.StoredProcedure);
+
+                    List<FileMetadataEntity> result = queryResult
+                        .Select(x => new FileMetadataEntity
+                        {
+                            ColumnName = x.name.ToString(),
+                            Type = x.system_type_name.ToString()
+                            //Order = (int)x.column_ordinal
+                        }).ToList();
+
+                    return new ChatRequestToolMessage(
+                        JsonSerializer.Serialize(result, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                        id);
+                }
             }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                return new ChatRequestToolMessage(
+                    "there was an error running the function, feel free to try again another couple of times or to stop here", id);
+            }
+            
         }
 
         public class FileQuery

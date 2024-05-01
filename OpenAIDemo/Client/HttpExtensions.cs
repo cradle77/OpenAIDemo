@@ -31,10 +31,20 @@ namespace OpenAIDemo.Client
 
         public async static IAsyncEnumerable<T> PostAndGetStreamAsync<T>(this HttpClient http, string url, HttpContent content)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, url);
+            var items = http.SendAndGetStreamAsync<T>(HttpMethod.Post, url, content);
+
+            await foreach (T item in items)
+            {
+                yield return item;
+            }
+        }
+
+        public async static IAsyncEnumerable<T> SendAndGetStreamAsync<T>(this HttpClient http, HttpMethod verb, string url, HttpContent content)
+        {
+            using var request = new HttpRequestMessage(verb, url);
             request.SetBrowserResponseStreamingEnabled(true); // Enable response streaming
             request.Content = content;
-
+            
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
 

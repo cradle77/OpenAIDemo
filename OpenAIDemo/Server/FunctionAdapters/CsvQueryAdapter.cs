@@ -21,9 +21,9 @@ namespace OpenAIDemo.Server.FunctionAdapters
 
         public string FunctionName => "query-file";
 
-        public FunctionDefinition GetFunctionDefinition()
+        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
         {
-            return new FunctionDefinition()
+            return new ChatCompletionsFunctionToolDefinition()
             {
                 Name = this.FunctionName,
                 Description = "This function allows you to execute a SQL query over a specified file and will return the resultset. The table name is always [TableName]. Do not specify the schema. You also need to pass the filename.",
@@ -49,7 +49,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             };
         }
 
-        public async Task<ChatMessage> InvokeAsync(string arguments)
+        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
         {
             try
             {
@@ -82,23 +82,16 @@ namespace OpenAIDemo.Server.FunctionAdapters
 
                     var queryResult = await connection.QueryAsync(query, commandTimeout: 60);
 
-                    return new ChatMessage()
-                    {
-                        Role = ChatRole.Function,
-                        Name = this.FunctionName,
-                        Content = JsonSerializer.Serialize(queryResult, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-                    };
+                    return new ChatRequestToolMessage(
+                        JsonSerializer.Serialize(queryResult, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+                        id);
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
-                return new ChatMessage()
-                {
-                    Role = ChatRole.Function,
-                    Name = this.FunctionName,
-                    Content = "there was an error running the function, try again"
-                };
+                return new ChatRequestToolMessage(
+                    "there was an error running the function, try again and make sure you are using valid T-SQL", id);
             }
         }
 
