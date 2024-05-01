@@ -80,7 +80,8 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     var token = credential.GetToken(new Azure.Core.TokenRequestContext(new[] { "https://database.windows.net/.default" }), cancellationToken);
                     connection.AccessToken = token.Token;
 
-                    var queryResult = await connection.QueryAsync(query, commandTimeout: 60);
+                    var queryResult = (await connection.QueryAsync(query, commandTimeout: 60))
+                        .Take(100); // enforce max 100 rows
 
                     return new ChatRequestToolMessage(
                         JsonSerializer.Serialize(queryResult, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
