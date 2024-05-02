@@ -132,6 +132,8 @@ namespace OpenAIDemo.Server.Controllers
                 {
                     if (streamedResponse.ToolCalls.Any())
                     {
+                        Console.WriteLine($"Number of tool calls: {streamedResponse.ToolCalls.Count}");
+
                         history.AddMessage(streamedResponse);
 
                         foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
