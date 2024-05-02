@@ -18,12 +18,12 @@ namespace OpenAIDemo
             builder.Services.AddControllersWithViews();
             builder.Services.AddRazorPages();
             builder.Services.AddHttpClient();
-            //builder.Services.AddTransient<IFunctionAdapter, WeatherFunctionAdapter>();
-            //builder.Services.AddTransient<IFunctionAdapter, ShoppingAddAdapter>();
-            //builder.Services.AddTransient<IFunctionAdapter, ShoppingGetListAdapter>();
-            //builder.Services.AddTransient<IFunctionAdapter, ShoppingModifyAdapter>();
-            //builder.Services.AddTransient<IFunctionAdapter, HotelSearchAdapter>();
-            //builder.Services.AddTransient<IFunctionAdapter, HotelBookingAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, WeatherFunctionAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, ShoppingAddAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, ShoppingGetListAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, ShoppingModifyAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, HotelSearchAdapter>();
+            builder.Services.AddTransient<IFunctionAdapter, HotelBookingAdapter>();
             builder.Services.AddTransient<IFunctionAdapter, CsvGetColumnsAdapter>();
             builder.Services.AddTransient<IFunctionAdapter, CsvQueryAdapter>();
             builder.Services.AddSingleton<IFunctionHandler, FunctionHandler>();
