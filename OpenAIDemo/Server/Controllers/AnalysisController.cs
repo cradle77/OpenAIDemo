@@ -90,7 +90,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
         }
 
         [HttpPatch("{sessionId}/files/{fileName}")]
-        public async IAsyncEnumerable<string> UploadCompletedAsync(Guid sessionId, string fileName, CancellationToken cancellationToken)
+        public async IAsyncEnumerable<string> UploadCompletedAsync(Guid sessionId, string fileName, CancellationToken token)
         {
             var history = _sessions[sessionId];
 
@@ -101,13 +101,11 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
             history.AddMessage(new ChatRequestUserMessage($"The file name is {fileName}"));
 
-            string result = string.Empty;
-
-            ChatChoice choice;
+            CompletionsFinishReason? finishReason = null;
 
             do
             {
-                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
+                var options = new ChatCompletionsOptions(engine,
                 history.Messages)
                 {
                     Temperature = 0.7f,
@@ -115,44 +113,44 @@ Data could potentially contain a big number of rows, so make sure all your queri
                 };
                 options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
 
-                var response = await client.GetChatCompletionsAsync(options);
+                var response = await client.GetChatCompletionsStreamingAsync(options, token);
 
-                Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
+                var responseStreamer = new ResponseStreamer(response);
 
-                choice = response.Value.Choices.First();
-
-                if (choice.Message.Content != null)
+                await foreach (var streamedResponse in responseStreamer.GetPhrases(token))
                 {
-                    var responseMessage = choice.Message;
-
-                    history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
-
-                    result += choice.Message.Content;
-
-                    yield return choice.Message.Content;
-                }
-
-                if (choice.Message.ToolCalls.Any())
-                {
-                    ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
-
-                    history.AddMessage(toolCallHistoryMessage);
-
-                    foreach (var toolCall in choice.Message.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                    if (streamedResponse.ToolCalls.Any())
                     {
-                        history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                        Console.WriteLine($"Number of tool calls: {streamedResponse.ToolCalls.Count}");
+
+                        history.AddMessage(streamedResponse);
+
+                        foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                        {
+                            history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Response: {streamedResponse.Content}");
+                        yield return streamedResponse.Content;
                     }
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
+                if (responseStreamer.Result != null)
+                {
+                    history.AddMessage(responseStreamer.Result);
+                }
+
+                finishReason = responseStreamer.FinishReason;
             }
-            while (choice.FinishReason != CompletionsFinishReason.Stopped);
+            while (finishReason != CompletionsFinishReason.Stopped);
 
             Console.WriteLine(history);
         }
 
         [HttpPost("{sessionId}/message")]
-        public async IAsyncEnumerable<string> PostMessage(Guid sessionId, [FromBody] string message, CancellationToken cancellationToken)
+        public async IAsyncEnumerable<string> PostMessage(Guid sessionId, [FromBody] string message, CancellationToken token)
         {
             var history = _sessions[sessionId];
 
@@ -163,13 +161,11 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
             history.AddMessage(new ChatRequestUserMessage(message));
 
-            string result = string.Empty;
-
-            ChatChoice choice;
+            CompletionsFinishReason? finishReason = null;
 
             do
             {
-                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
+                var options = new ChatCompletionsOptions(engine,
                 history.Messages)
                 {
                     Temperature = 0.7f,
@@ -177,38 +173,38 @@ Data could potentially contain a big number of rows, so make sure all your queri
                 };
                 options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
 
-                var response = await client.GetChatCompletionsAsync(options);
+                var response = await client.GetChatCompletionsStreamingAsync(options, token);
 
-                Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
+                var responseStreamer = new ResponseStreamer(response);
 
-                choice = response.Value.Choices.First();
-
-                if (choice.Message.Content != null)
+                await foreach (var streamedResponse in responseStreamer.GetPhrases(token))
                 {
-                    var responseMessage = choice.Message;
-
-                    history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
-
-                    result += choice.Message.Content;
-
-                    yield return choice.Message.Content;
-                }
-
-                if (choice.Message.ToolCalls.Any())
-                {
-                    ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
-
-                    history.AddMessage(toolCallHistoryMessage);
-
-                    foreach (var toolCall in choice.Message.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                    if (streamedResponse.ToolCalls.Any())
                     {
-                        history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                        Console.WriteLine($"Number of tool calls: {streamedResponse.ToolCalls.Count}");
+
+                        history.AddMessage(streamedResponse);
+
+                        foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                        {
+                            history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Response: {streamedResponse.Content}");
+                        yield return streamedResponse.Content;
                     }
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
+                if (responseStreamer.Result != null)
+                {
+                    history.AddMessage(responseStreamer.Result);
+                }
+
+                finishReason = responseStreamer.FinishReason;
             }
-            while (choice.FinishReason != CompletionsFinishReason.Stopped);
+            while (finishReason != CompletionsFinishReason.Stopped);
 
             Console.WriteLine(history);
         }
