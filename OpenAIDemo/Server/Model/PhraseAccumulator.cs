@@ -15,6 +15,8 @@ namespace OpenAIDemo.Server.Model
 
         public void Append(StreamingChatCompletionsUpdate item)
         {
+            this.HasItem = false;
+
             if (item.ContentUpdate == null)
             {
                 return;

@@ -57,7 +57,8 @@ namespace OpenAIDemo.Server.Model
 
             while (this.CalculateLength() > TokenLimit)
             {
-                Console.WriteLine($"Removing message: {_messages[1].GetContent().Substring(0, Math.Min(40, _messages[1].GetContent().Length))}");
+                Console.WriteLine($"Removing message: {_messages[1].GetContent()?.Substring(0, 
+                    Math.Min(40, (_messages[1].GetContent()?.Length).GetValueOrDefault()))}");
 
                 _messages.RemoveAt(1);
             }

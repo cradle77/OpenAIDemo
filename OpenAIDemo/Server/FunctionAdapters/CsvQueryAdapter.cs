@@ -81,18 +81,24 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     connection.AccessToken = token.Token;
 
                     var queryResult = (await connection.QueryAsync(query, commandTimeout: 60))
-                        .Take(100); // enforce max 100 rows
+                        .Take(20); // enforce max 20 rows
 
                     return new ChatRequestToolMessage(
                         JsonSerializer.Serialize(queryResult, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
                         id);
                 }
             }
+            catch (SqlException ex)
+            {
+                return new ChatRequestToolMessage(
+                    $"there was an error running the function: {ex.Message}",
+                    id);
+            }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
                 return new ChatRequestToolMessage(
-                    "there was an error running the function, try again and make sure you are using valid T-SQL", id);
+                    $"there was an error running the function of type {ex.GetType().Name}, try again and make sure you are using valid T-SQL. Also make sure the table name is always [TableName], with square brackets", id);
             }
         }
 

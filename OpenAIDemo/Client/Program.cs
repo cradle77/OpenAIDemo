@@ -15,7 +15,7 @@ namespace OpenAIDemo.Client
             builder.Services.AddScoped(sp => new HttpClient 
             { 
                 BaseAddress = new Uri(builder.HostEnvironment.BaseAddress),
-                Timeout = TimeSpan.FromMinutes(3)
+                Timeout = TimeSpan.FromMinutes(10)
             });
 
             await builder.Build().RunAsync();
