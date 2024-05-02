@@ -25,10 +25,9 @@ namespace OpenAIDemo.Server.Model
                 functionAccumulator.Append(item);
                 phraseAccumulator.Append(item);
 
-                if (phraseAccumulator.HasItem)
+                if (phraseAccumulator.HasItem) // auto flushed
                 {
                     yield return phraseAccumulator.CurrentItem;
-                    phraseAccumulator = new PhraseAccumulator();
                 }
 
                 if (item.FinishReason != null)
@@ -49,6 +48,8 @@ namespace OpenAIDemo.Server.Model
             {
                 yield return functionAccumulator.CurrentItem;
             }
+
+            this.Result = phraseAccumulator.Result;
         }
     }
 }
