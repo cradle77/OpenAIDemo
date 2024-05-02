@@ -44,7 +44,7 @@ Only return the insight text after you have calculated it, without giving interm
 
 The database is SQL Server, so always use standard T-SQL.
 
-Data could potentially contain a big number of rows, so make sure all your queries are properly limited (max 100 rows)";
+Data could potentially contain a big number of rows, so make sure all your queries are properly limited (max 20 rows)";
 
             var sessionId = Guid.NewGuid();
 
@@ -90,7 +90,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
         }
 
         [HttpPatch("{sessionId}/files/{fileName}")]
-        public async IAsyncEnumerable<string> UploadCompletedAsync(Guid sessionId, string fileName)
+        public async IAsyncEnumerable<string> UploadCompletedAsync(Guid sessionId, string fileName, CancellationToken cancellationToken)
         {
             var history = _sessions[sessionId];
 
@@ -143,6 +143,8 @@ Data could potentially contain a big number of rows, so make sure all your queri
                         history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
                     }
                 }
+
+                cancellationToken.ThrowIfCancellationRequested();
             }
             while (choice.FinishReason != CompletionsFinishReason.Stopped);
 
@@ -150,7 +152,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
         }
 
         [HttpPost("{sessionId}/message")]
-        public async IAsyncEnumerable<string> PostMessage(Guid sessionId, [FromBody] string message)
+        public async IAsyncEnumerable<string> PostMessage(Guid sessionId, [FromBody] string message, CancellationToken cancellationToken)
         {
             var history = _sessions[sessionId];
 
@@ -203,6 +205,8 @@ Data could potentially contain a big number of rows, so make sure all your queri
                         history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
                     }
                 }
+
+                cancellationToken.ThrowIfCancellationRequested();
             }
             while (choice.FinishReason != CompletionsFinishReason.Stopped);
 
