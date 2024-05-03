@@ -125,9 +125,15 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
                         history.AddMessage(streamedResponse);
 
-                        foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                        var tasks = streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>()
+                            .Select(_functionHandler.ExecuteCallAsync)
+                            .ToArray();
+
+                        await Task.WhenAll(tasks);
+
+                        foreach (var task in tasks)
                         {
-                            history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                            history.AddMessage(task.Result);
                         }
                     }
                     else
@@ -185,9 +191,15 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
                         history.AddMessage(streamedResponse);
 
-                        foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                        var tasks = streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>()
+                            .Select(_functionHandler.ExecuteCallAsync)
+                            .ToArray();
+
+                        await Task.WhenAll(tasks);
+
+                        foreach (var task in tasks)
                         {
-                            history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
+                            history.AddMessage(task.Result);
                         }
                     }
                     else
