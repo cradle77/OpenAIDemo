@@ -96,9 +96,7 @@ namespace OpenAIDemo.Server.Controllers
             }
             while (choice.FinishReason != CompletionsFinishReason.Stopped);
 
-            history.AddMessage(new ChatRequestAssistantMessage(result));
-
-            Console.WriteLine(history);
+            Console.WriteLine(history.ToJson());
 
             return Ok(result);
         }
