@@ -28,6 +28,7 @@ namespace OpenAIDemo.Server.Controllers
         {
             _functionHandler = functionHandler;
             _config = config.Value;
+            _config.OpenAi.ChatEngine = "gpt4-des";
         }
 
         [HttpPost()]
