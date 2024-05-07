@@ -61,7 +61,8 @@ namespace OpenAIDemo.Server.Model
                 var newPrompt = _originalPrompt + "\r\nThis is a summary of the conversation which has happened so far. " + 
                 "You have compressed by using language mixing, abbreviations, symbols " + 
                 "(unicode and emoji), or any other encodings or internal representations:\r\n" + choice.Message.Content + 
-                "\r\nDo not use compression in the future, as it is not human readable or understandable.";
+                "\r\nDo not use compression in the future, as it is not human readable or understandable. Be as detailed " + 
+                "and comprehensive as you want, without mimicking the style of the compressed summary.";
 
                 Console.WriteLine($"New prompt: \r\n{newPrompt}");
 
