@@ -29,12 +29,9 @@ namespace OpenAIDemo.Server.Model
 
                 OpenAIClient client = new(new Uri(config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(config.OpenAi.OpenAiKey));
 
-                var prompt = @"compress the following text in a way that you (GPT-4) can reconstruct the intention of 
-                               the human who wrote text as close as possible to the original intention. This is for yourself. 
-                               It does not need to be human readable or understandable. Abuse of language mixing, 
-                               abbreviations, symbols (unicode and emoji), or any other encodings or internal 
-                               representations is all permissible, as long as it, if pasted in a new inference cycle, 
-                               will yield near-identical results as the original text:";
+                var prompt = @"I'm going to provide you a JSON representation of a chat conversation, between the user and the AI assistant. " + 
+                "Impersonate the user and create a short summary of the entire content, which you would expect to be provided to you as a sort of " +
+                "recap. It has to be plain text, not JSON. The summary content should be from the user perspective, so something like 'I asked you etc.' ";
 
                 var sourceMessages = this.Messages.Take(messagesToReplace)
                     .Select(x => new
@@ -53,29 +50,33 @@ namespace OpenAIDemo.Server.Model
                                        messages)
                 {
                     Temperature = 0.7f,
-                    MaxTokens = 500,
+                    MaxTokens = 200,
                 });
 
                 var choice = response.Value.Choices.First();
 
-                var newPrompt = _originalPrompt + "\r\nThis is a summary of the conversation which has happened so far. " + 
-                "You have compressed by using language mixing, abbreviations, symbols " + 
-                "(unicode and emoji), or any other encodings or internal representations:\r\n" + choice.Message.Content + 
-                "\r\nDo not use compression in the future, as it is not human readable or understandable. Be as detailed " + 
-                "and comprehensive as you want, without mimicking the style of the compressed summary.";
-
-                Console.WriteLine($"New prompt: \r\n{newPrompt}");
-
                 var newMessages = new List<ChatRequestMessage>
                 {
-                    new ChatRequestSystemMessage(newPrompt)
+                    new ChatRequestSystemMessage(_originalPrompt),
+                    new ChatRequestUserMessage("Hello, this is a recap of the conversation so far: " + choice.Message.Content)
                 };
+
                 newMessages.AddRange(this.MessagesInternal.Skip(messagesToReplace + 1));
                 
                 this.MessagesInternal = newMessages;
 
-                Console.WriteLine(this.ToString());
+                Console.WriteLine(this.ToJson());
             });
+        }
+
+        public string ToJson()
+        {
+            return JsonSerializer.Serialize(
+                this.Messages.Select(x => new
+                {
+                    Role = x.Role.ToString(),
+                    Content = x.GetContent()
+                }), new JsonSerializerOptions() { WriteIndented = true });
         }
     }
 }
