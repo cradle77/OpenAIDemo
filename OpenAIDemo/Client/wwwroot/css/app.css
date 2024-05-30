@@ -294,3 +294,49 @@ audio {
     text-align: left;
     background-color: #f1f1f1;
 }
+
+.chat-image-thumbnail {
+    max-width: 50px;
+    max-height: 50px;
+    margin: 5px;
+    border-radius: 5px;
+}
+
+.chat-image {
+    max-width: 200px;
+    max-height: 200px;
+    margin: 5px;
+    border-radius: 5px;
+}
+
+.image-thumbnail {
+    display: inline-block;
+    position: relative;
+}
+
+.remove-image-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: red;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.upload-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+    margin-right: 10px;
+}
+    .upload-button:hover {
+        background-color: #0056b3;
+    }
+/*
+input[type="file"] {
+    display: none;
+}*/

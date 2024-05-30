@@ -9,7 +9,7 @@ namespace OpenAIDemo.Server.Model
 
         public IEnumerable<ChatRequestMessage> Messages => MessagesInternal;
 
-        private const int TokenLimit = 500;
+        private const int TokenLimit = 4000;
 
         public ChatHistory()
         {

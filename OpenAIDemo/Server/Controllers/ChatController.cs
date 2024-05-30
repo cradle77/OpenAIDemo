@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Server.Queuing;
 using OpenAIDemo.Shared;
+using System.Net;
 using System.Text.Json;
 
 namespace OpenAIDemo.Server.Controllers
@@ -71,14 +72,23 @@ namespace OpenAIDemo.Server.Controllers
         }
 
         [HttpPost("{sessionId}/message-stream")]
-        public async IAsyncEnumerable<string> PostMessageStream(Guid sessionId, [FromBody] string message, CancellationToken token)
+        public async IAsyncEnumerable<string> PostMessageStream(Guid sessionId, [FromBody] string[] payload, CancellationToken token)
         {
             var history = _sessions[sessionId];
 
+            var content = new List<ChatMessageContentItem>();
+            // add the text payload
+            content.Add(new ChatMessageTextContentItem(payload.First()));
+            // add all the images
+            foreach (var image in payload.Skip(1))
+            {
+                content.Add(new ChatMessageImageContentItem(new Uri(image)));
+            }
+            
             OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
-
-            history.AddMessage(new ChatRequestUserMessage(message));
-
+            
+            history.AddMessage(new ChatRequestUserMessage(content));
+            
             var response = await client.GetChatCompletionsStreamingAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
                 history.Messages)
             {

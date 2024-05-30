@@ -18,6 +18,7 @@
     public class AdlsConfig 
     {
         public string ContainerName { get; set; }
+        public string ImageContainerName { get; set; }
         public string StorageEndpoint { get; set; }
         public string AccountName { get; set; }
     }
