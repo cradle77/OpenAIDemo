@@ -45,7 +45,7 @@ namespace OpenAIDemo.Server.Controllers
                     BlobContainerName = blobClient.BlobContainerName,
                     BlobName = blobClient.Name,
                     Resource = "b", // b for blob, c for container
-                    StartsOn = DateTimeOffset.UtcNow.AddSeconds(-30),
+                    StartsOn = DateTimeOffset.UtcNow.AddSeconds(-120),
                     ExpiresOn = DateTimeOffset.UtcNow.AddHours(2),
                 };
 
