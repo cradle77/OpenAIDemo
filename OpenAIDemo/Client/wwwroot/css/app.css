@@ -318,11 +318,17 @@ audio {
     position: absolute;
     top: 0;
     right: 0;
-    background: red;
+    background: #808080; 
     color: white;
     border: none;
+    width: 20px; 
+    height: 20px;
     border-radius: 50%;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
 }
 
 .upload-button {
