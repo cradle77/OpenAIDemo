@@ -267,17 +267,35 @@ audio {
 
 .chat-input {
     display: flex;
+    align-items: end;
     padding: 10px;
-    border-top: 1px solid #ddd;
+    background-color: #f1f1f1;
 }
 
     .chat-input input {
         flex: 1;
+        border: none;
+        outline: none;
         padding: 10px;
         margin-right: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
     }
+
+.input-with-images {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background-color: white;
+    border: 1px solid #ccc;
+    padding: 5px;
+    flex: 1;
+}
+
+.image-thumbnails {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-bottom: 5px;
+}
 
 .chat-message {
     margin-bottom: 10px;
@@ -337,11 +355,17 @@ audio {
     border: none;
     padding: 10px;
     cursor: pointer;
-    margin-right: 10px;
+    margin-right: 5px;
+    height: 61px;
 }
     .upload-button:hover {
         background-color: #0056b3;
     }
+
+.send-button {
+    margin-left: 5px;
+    height: 61px;
+}
 /*
 input[type="file"] {
     display: none;

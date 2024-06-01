@@ -25,17 +25,21 @@
     </div>
 
     <div class="chat-input">
-        @foreach (var image in uploadedImages)
-        {
-            <div class="image-thumbnail">
-                <img src="@image" class="chat-image-thumbnail" />
-                <button @onclick="() => RemoveImage(image)" class="remove-image-button">X</button>
-            </div>
-        }
         <button @onclick="TriggerFileInput" class="upload-button"><span class="oi oi-paperclip" aria-hidden="true"></span></button>
+        <div class="input-with-images">
+            <div class="image-thumbnails">
+                @foreach (var image in uploadedImages)
+                {
+                    <div class="image-thumbnail">
+                        <img src="@image" class="chat-image-thumbnail" />
+                        <button @onclick="() => RemoveImage(image)" class="remove-image-button">X</button>
+                    </div>
+                }
+            </div>
+            <input @bind="newMessage" @bind:event="oninput" placeholder="Type your message..." @onkeydown="@EnterAsync" />
+        </div>
         <InputFile @ref="inputFile" OnChange="HandleImageUpload" multiple id="fileInput" style="display:none" />
-        <input @bind="newMessage" @bind:event="oninput" placeholder="Type your message..." @onkeydown="@EnterAsync" />
-        <button @onclick="SendMessageAsync">Send</button>
+        <button @onclick="SendMessageAsync" class="send-button">Send</button>
     </div>
 </div>
 
