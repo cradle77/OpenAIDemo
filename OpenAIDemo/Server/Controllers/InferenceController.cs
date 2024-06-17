@@ -23,7 +23,7 @@ namespace OpenAIDemo.Server.Controllers
             _provider = provider;
         }
 
-        [HttpPost()]
+        [HttpPost()] // <-- ReviewDetails
         public async Task<IActionResult> InferReviewAsync([FromBody] string reviewText)
         {
             string prompt = @"You are an AI which helps storing review data. You will be prompted with a review text, between triple backticks.
