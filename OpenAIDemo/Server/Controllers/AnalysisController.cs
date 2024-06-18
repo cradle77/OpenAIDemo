@@ -44,7 +44,7 @@ Only return the insight text after you have calculated it, without giving interm
 
 The database is SQL Server, so always use standard T-SQL.
 
-Data could potentially contain a big number of rows, so make sure all your queries are properly limited (max 20 rows)";
+Data could potentially contain a big number of rows, so make sure all your queries are properly limited (max 20 rows) with a SELECT TOP ... clause";
 
             var sessionId = Guid.NewGuid();
 
