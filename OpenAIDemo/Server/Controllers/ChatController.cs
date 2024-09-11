@@ -1,10 +1,8 @@
-﻿using Azure;
-using Azure.AI.OpenAI;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel.ChatCompletion;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Shared;
-using System.Text.Json;
 
 namespace OpenAIDemo.Server.Controllers
 {
@@ -14,15 +12,17 @@ namespace OpenAIDemo.Server.Controllers
     {
         private static Dictionary<Guid, ChatHistory> _sessions;
         private AzureConfig _config;
+        private IChatCompletionService _chat;
 
         static ChatController()
         {
             _sessions = new Dictionary<Guid, ChatHistory>();
         }
 
-        public ChatController(IOptions<AzureConfig> config)
+        public ChatController(IOptions<AzureConfig> config, IChatCompletionService chat)
         {
             _config = config.Value;
+            _chat = chat;
         }
 
         [HttpPost()]
@@ -30,7 +30,7 @@ namespace OpenAIDemo.Server.Controllers
         {
             var sessionId = Guid.NewGuid();
 
-            _sessions.Add(sessionId, new ChatHistory());
+            _sessions.Add(sessionId, new ChatHistory($"You are a very useful AI assistant who will answer questions.").ShowLog());
             return Ok(new ChatSession() { Id = sessionId });
         }
 
@@ -41,30 +41,22 @@ namespace OpenAIDemo.Server.Controllers
             {
                 return NotFound();
             }
+
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            history.AddUserMessage(message);
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            history.ShowLastLog();
 
-            var response = await client.GetChatCompletionsAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-            history.Messages)
-            {
-                Temperature = 0.7f,
-                MaxTokens = 500,
-            });
+            var result = await _chat.GetChatMessageContentAsync(history);
 
-            Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
+            string responseMessage = result.ToString();
 
-            var choice = response.Value.Choices.First();
+            history.AddAssistantMessage(responseMessage);
 
-            var responseMessage = choice.Message;
+            history.ShowLastLog();
 
-            history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
-
-            Console.WriteLine(history);
-
-            return Ok(responseMessage.Content);
+            return Ok(responseMessage);
         }
 
         [HttpPost("{sessionId}/message-stream")]
@@ -72,29 +64,26 @@ namespace OpenAIDemo.Server.Controllers
         {
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            history.AddUserMessage(message);
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            history.ShowLastLog();
 
-            var response = await client.GetChatCompletionsStreamingAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-                history.Messages)
-            {
-                Temperature = 0.7f,
-                MaxTokens = 500,
-            }, token);
+            var result = _chat.GetStreamingChatMessageContentsAsync(history);
 
             var fullResponse = string.Empty;
 
-            await foreach (StreamingChatCompletionsUpdate responseMessage in response)
+            await foreach (var responseMessage in result)
             {
-                Console.WriteLine($"Response: {responseMessage.ContentUpdate}");
-                fullResponse += responseMessage.ContentUpdate;
-                yield return responseMessage.ContentUpdate;
+                fullResponse += responseMessage.Content;
+
+                Console.WriteLine(responseMessage.Content);
+
+                yield return responseMessage.Content;
             }
 
-            history.AddMessage(new ChatRequestAssistantMessage(fullResponse));
+            history.AddAssistantMessage(fullResponse);
 
-            Console.WriteLine(history);
+            history.ShowLastLog();
         }
     }
 }
