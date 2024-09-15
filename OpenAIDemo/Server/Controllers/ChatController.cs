@@ -1,7 +1,9 @@
 ﻿using Azure;
 using Azure.AI.OpenAI;
+using Azure.AI.OpenAI.Chat;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using OpenAI.Chat;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Server.Queuing;
 using OpenAIDemo.Shared;
@@ -46,12 +48,13 @@ namespace OpenAIDemo.Server.Controllers
             }
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            AzureOpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            var chat = client.GetChatClient(_config.OpenAi.ChatEngine);
 
-            var response = await client.GetChatCompletionsAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-            history.Messages)
+            history.AddMessage(new UserChatMessage(message));
+
+            var response = await chat.CompleteChatAsync(history.Messages, new ChatCompletionOptions()
             {
                 Temperature = 0.7f,
                 MaxTokens = 500,
@@ -59,15 +62,13 @@ namespace OpenAIDemo.Server.Controllers
 
             Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
 
-            var choice = response.Value.Choices.First();
+            var responseMessage = response.Value.Content[0].Text;
 
-            var responseMessage = choice.Message;
-
-            history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
+            history.AddMessage(new AssistantChatMessage(responseMessage));
 
             Console.WriteLine(history);
 
-            return Ok(responseMessage.Content);
+            return Ok(responseMessage);
         }
 
         [HttpPost("{sessionId}/message-stream")]
@@ -75,12 +76,13 @@ namespace OpenAIDemo.Server.Controllers
         {
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            AzureOpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            var chat = client.GetChatClient(_config.OpenAi.ChatEngine);
 
-            var response = await client.GetChatCompletionsStreamingAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-                history.Messages)
+            history.AddMessage(new UserChatMessage(message));
+
+            var response = chat.CompleteChatStreamingAsync(history.Messages, new ChatCompletionOptions()
             {
                 Temperature = 0.7f,
                 MaxTokens = 500,
@@ -88,14 +90,17 @@ namespace OpenAIDemo.Server.Controllers
 
             var fullResponse = string.Empty;
 
-            await foreach (StreamingChatCompletionsUpdate responseMessage in response)
+            await foreach (StreamingChatCompletionUpdate completionUpdate in response)
             {
-                Console.WriteLine($"Response: {responseMessage.ContentUpdate}");
-                fullResponse += responseMessage.ContentUpdate;
-                yield return responseMessage.ContentUpdate;
+                foreach (ChatMessageContentPart contentPart in completionUpdate.ContentUpdate)
+                {
+                    Console.WriteLine($"Response: {contentPart.Text}");
+                    fullResponse += contentPart.Text;
+                    yield return contentPart.Text;
+                }
             }
 
-            history.AddMessage(new ChatRequestAssistantMessage(fullResponse));
+            history.AddMessage(new AssistantChatMessage(fullResponse));
 
             Console.WriteLine(history);
         }
