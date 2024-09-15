@@ -1,19 +1,21 @@
 ﻿using Azure.AI.OpenAI;
+using OpenAI.Chat;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenAIDemo.Server.Model
 {
     public class ChatHistory
     {
-        private List<ChatRequestMessage> _messages;
+        private List<ChatMessage> _messages;
 
-        public IEnumerable<ChatRequestMessage> Messages => _messages;
+        public IEnumerable<ChatMessage> Messages => _messages;
 
         public ChatHistory()
         {
-            _messages = new List<ChatRequestMessage>()
+            _messages = new List<ChatMessage>()
             {
-                new ChatRequestSystemMessage($"You are a very useful AI assistant who will answer questions.")
+                new SystemChatMessage($"You are a very useful AI assistant who will answer questions.")
             };
 
             this.ShowLog(_messages[0]);
@@ -21,32 +23,40 @@ namespace OpenAIDemo.Server.Model
 
         public ChatHistory(string prompt)
         {
-            _messages = new List<ChatRequestMessage>()
+            _messages = new List<ChatMessage>()
             {
-                new ChatRequestSystemMessage(prompt)
+                new SystemChatMessage(prompt)
             };
         }
 
-        public void AddMessage(ChatRequestMessage message)
+        public void AddMessage(ChatMessage message)
         {
             _messages.Add(message);
 
             this.ShowLog(message);
         }
 
-        private void ShowLog(ChatRequestMessage message)
+        private void ShowLog(ChatMessage message)
         {
             var forecolor = Console.ForegroundColor;
 
-            if (message.Role == ChatRole.System)
+            if (message.GetRole() == ChatMessageRole.System)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
             }
-            else if (message.Role == ChatRole.User)
+            else if (message.GetRole() == ChatMessageRole.User)
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.ForegroundColor = ConsoleColor.Green;
             }
-            else if (message.Role == ChatRole.Assistant)
+            else if (message.GetRole() == ChatMessageRole.Tool)
+            {
+                Console.ForegroundColor = ConsoleColor.Blue;
+            }
+            else if (message.GetRole() == ChatMessageRole.Function)
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+            }
+            else if (message is AssistantChatMessage)
             {
                 Console.ForegroundColor = ConsoleColor.White;
             }
@@ -54,9 +64,16 @@ namespace OpenAIDemo.Server.Model
             var json = JsonSerializer.Serialize(
                 new
                 {
-                    Role = message.Role.ToString(), 
-                    Content = message.GetContent()
-                }, new JsonSerializerOptions() { WriteIndented = true });
+                    Role = message.GetRole().ToString(),
+                    Content = message.GetContent(),
+                }, new JsonSerializerOptions()
+                {
+                    WriteIndented = true,
+                    Converters =
+                    {
+                        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+                    }
+                });
 
             Console.WriteLine(json);
 
@@ -71,11 +88,18 @@ namespace OpenAIDemo.Server.Model
         public string ToJson()
         {
             return JsonSerializer.Serialize(
-                this.Messages.Select(x => new 
-                { 
-                    Role = x.Role.ToString(), 
-                    Content = x.GetContent()
-                }), new JsonSerializerOptions() { WriteIndented = true });
+                this.Messages.Select(x => new
+                {
+                    Role = x.GetRole(),
+                    Content = x.GetContent(),
+                }), new JsonSerializerOptions()
+                {
+                    WriteIndented = true,
+                    Converters =
+                    {
+                        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+                    }
+                });
         }
     }
 }
