@@ -1,29 +1,33 @@
-﻿using Azure.AI.OpenAI;
+﻿using OpenAI.Chat;
 using SharpToken;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenAIDemo.Server.Model
 {
     public class ChatHistory
     {
-        protected List<ChatRequestMessage> MessagesInternal;
+        protected List<ChatMessage> MessagesInternal;
 
-        public IEnumerable<ChatRequestMessage> Messages => MessagesInternal;
+        public IEnumerable<ChatMessage> Messages => MessagesInternal;
 
         private const int TokenLimit = 4000;
 
         public ChatHistory()
         {
-            MessagesInternal = new List<ChatRequestMessage>()
+            MessagesInternal = new List<ChatMessage>()
             {
-                new ChatRequestSystemMessage($"You are a very useful AI assistant who will answer questions.")
+                new SystemChatMessage($"You are a very useful AI assistant who will answer questions.")
             };
+
+            this.ShowLog(MessagesInternal[0]);
         }
 
         public ChatHistory(string prompt)
         {
-            MessagesInternal = new List<ChatRequestMessage>()
+            MessagesInternal = new List<ChatMessage>()
             {
-                new ChatRequestSystemMessage(prompt)
+                new SystemChatMessage(prompt)
             };
         }
 
@@ -39,18 +43,18 @@ namespace OpenAIDemo.Server.Model
                                         // <|im_end|>
             var tokens_per_name = 1;
 
-            var result = 
+            var result =
                 // sum the tokens in each message
-                MessagesInternal.Sum(x => encoding.Encode(x.GetContent()).Count()) + 
+                MessagesInternal.Sum(x => encoding.Encode(x.GetContent()).Count()) +
                 // add the tokens for the name of each message
-                MessagesInternal.Where(x => !string.IsNullOrWhiteSpace(x.Role.ToString())).Count() * tokens_per_name +
+                MessagesInternal.Where(x => !string.IsNullOrWhiteSpace(x.GetRole().ToString())).Count() * tokens_per_name +
                 // add the tokens for the role of each message
                 MessagesInternal.Count * tokens_per_message;
 
             return result;
         }
 
-        public void AddMessage(ChatRequestMessage message)
+        public void AddMessage(ChatMessage message)
         {
             MessagesInternal.Add(message);
 
@@ -73,6 +77,67 @@ namespace OpenAIDemo.Server.Model
         public override string ToString()
         {
             return $"Message count: {MessagesInternal.Count} - Total tokens: {this.CalculateLength()}";
+        }
+
+        private void ShowLog(ChatMessage message)
+        {
+            var forecolor = Console.ForegroundColor;
+
+            if (message.GetRole() == ChatMessageRole.System)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+            }
+            else if (message.GetRole() == ChatMessageRole.User)
+            {
+                Console.ForegroundColor = ConsoleColor.Green;
+            }
+            else if (message.GetRole() == ChatMessageRole.Tool)
+            {
+                Console.ForegroundColor = ConsoleColor.Blue;
+            }
+            else if (message.GetRole() == ChatMessageRole.Function)
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+            }
+            else if (message is AssistantChatMessage)
+            {
+                Console.ForegroundColor = ConsoleColor.White;
+            }
+
+            var json = JsonSerializer.Serialize(
+                new
+                {
+                    Role = message.GetRole().ToString(),
+                    Content = message.GetContent(),
+                }, new JsonSerializerOptions()
+                {
+                    WriteIndented = true,
+                    Converters =
+                    {
+                        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+                    }
+                });
+
+            Console.WriteLine(json);
+
+            Console.ForegroundColor = forecolor;
+        }
+
+        public string ToJson()
+        {
+            return JsonSerializer.Serialize(
+                this.Messages.Select(x => new
+                {
+                    Role = x.GetRole(),
+                    Content = x.GetContent(),
+                }), new JsonSerializerOptions()
+                {
+                    WriteIndented = true,
+                    Converters =
+                    {
+                        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+                    }
+                });
         }
     }
 }
