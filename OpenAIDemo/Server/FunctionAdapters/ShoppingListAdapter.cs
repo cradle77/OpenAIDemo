@@ -1,4 +1,5 @@
 ﻿using Azure.AI.OpenAI;
+using OpenAI.Chat;
 using System.Text.Json;
 
 namespace OpenAIDemo.Server.FunctionAdapters
@@ -20,13 +21,13 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "add-shopping-list-item";
 
-        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
+        public ChatTool GetFunctionDefinition()
         {
-            return new ChatCompletionsFunctionToolDefinition()
-            {
-                Name = this.FunctionName,
-                Description = "This function allows the management of a shopping list, and allows the user to add an item to his current shopping list. It returns the current content of the shopping list. If the user asks to add an item, and the item is already in the shopping list, this should result in modify-shopping-list-item to be called instead with an updated quantity.",
-                Parameters = BinaryData.FromObjectAsJson(new
+            return ChatTool.CreateFunctionTool
+            (
+                functionName: this.FunctionName,
+                functionDescription: "This function allows the management of a shopping list, and allows the user to add an item to his current shopping list. It returns the current content of the shopping list. If the user asks to add an item, and the item is already in the shopping list, this should result in modify-shopping-list-item to be called instead with an updated quantity.",
+                functionParameters: BinaryData.FromObjectAsJson(new
                 {
                     Type = "object",
                     Properties = new
@@ -44,10 +45,10 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     },
                     Required = new[] { "Item", "Quantity" },
                 }, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            );
         }
 
-        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
+        public async Task<ToolChatMessage> InvokeAsync(string id, string arguments)
         {
             var todo = JsonSerializer.Deserialize<ShoppingListItem>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
@@ -58,9 +59,8 @@ namespace OpenAIDemo.Server.FunctionAdapters
 
             ShoppingList.Instance.Items.Add(todo);
 
-            return new ChatRequestToolMessage(
-                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
-                id
+            return ChatMessage.CreateToolChatMessage(id, 
+                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
                 );
         }
     }
@@ -69,13 +69,13 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "get-shopping-list";
 
-        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
+        public ChatTool GetFunctionDefinition()
         {
-            return new ChatCompletionsFunctionToolDefinition()
-            {
-                Name = this.FunctionName,
-                Description = "This function returns the most updated content of the shopping list in a JSON array format",
-                Parameters = BinaryData.FromObjectAsJson(new
+            return ChatTool.CreateFunctionTool
+            (
+                functionName: this.FunctionName,
+                functionDescription: "This function returns the most updated content of the shopping list in a JSON array format",
+                functionParameters: BinaryData.FromObjectAsJson(new
                 {
                     Type = "object",
                     Properties = new
@@ -88,14 +88,13 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     },
                     Required = new string[] {  },
                 }, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            );
         }
 
-        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
+        public async Task<ToolChatMessage> InvokeAsync(string id, string arguments)
         {
-            return new ChatRequestToolMessage(
-                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
-                id
+            return ChatMessage.CreateToolChatMessage(id,
+                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
                 );
         }
     }
@@ -104,13 +103,13 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "modify-shopping-list-item";
 
-        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
+        public ChatTool GetFunctionDefinition()
         {
-            return new ChatCompletionsFunctionToolDefinition()
-            {
-                Name = this.FunctionName,
-                Description = "This function allows to modify or remove an item from the shopping list. The description field must be exactly the same as one of the items in the shopping list. The quantity field must be set to 0 in case of removal. It returns the current content of the shopping list. If the user asks to add an item, and the item is already in the shopping list, this should result in modify to be called instead with an updated quantity.",
-                Parameters = BinaryData.FromObjectAsJson(new
+            return ChatTool.CreateFunctionTool
+            (
+                functionName: this.FunctionName,
+                functionDescription: "This function allows to modify or remove an item from the shopping list. The description field must be exactly the same as one of the items in the shopping list. The quantity field must be set to 0 in case of removal. It returns the current content of the shopping list. If the user asks to add an item, and the item is already in the shopping list, this should result in modify to be called instead with an updated quantity.",
+                functionParameters: BinaryData.FromObjectAsJson(new
                 {
                     Type = "object",
                     Properties = new
@@ -128,10 +127,10 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     },
                     Required = new[] { "Item", "Quantity" },
                 }, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            );
         }
 
-        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
+        public async Task<ToolChatMessage> InvokeAsync(string id, string arguments)
         {
             var todo = JsonSerializer.Deserialize<ShoppingListItem>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
@@ -144,14 +143,14 @@ namespace OpenAIDemo.Server.FunctionAdapters
                 var item = ShoppingList.Instance.Items.FirstOrDefault(x => x.Description == todo.Description);
                 if (item == null)
                 {
-                    return new ChatRequestToolMessage(id, $"Item {todo.Description} not found");
+                    return ChatMessage.CreateToolChatMessage(id, $"Item {todo.Description} not found");
                 }
                 item.Quantity = todo.Quantity;
             }
 
-            return new ChatRequestToolMessage(
-                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
-                id);
+            return ChatMessage.CreateToolChatMessage(id,
+                JsonSerializer.Serialize(ShoppingList.Instance.Items, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+                );
         }
     }
 }

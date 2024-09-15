@@ -1,5 +1,5 @@
-﻿using Azure.AI.OpenAI;
-using OpenAI.Chat;
+﻿using OpenAI.Chat;
+using SharpToken;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -7,33 +7,76 @@ namespace OpenAIDemo.Server.Model
 {
     public class ChatHistory
     {
-        private List<ChatMessage> _messages;
+        protected List<ChatMessage> MessagesInternal;
 
-        public IEnumerable<ChatMessage> Messages => _messages;
+        public IEnumerable<ChatMessage> Messages => MessagesInternal;
+
+        private const int TokenLimit = 4000;
 
         public ChatHistory()
         {
-            _messages = new List<ChatMessage>()
+            MessagesInternal = new List<ChatMessage>()
             {
                 new SystemChatMessage($"You are a very useful AI assistant who will answer questions.")
             };
 
-            this.ShowLog(_messages[0]);
+            this.ShowLog(MessagesInternal[0]);
         }
 
         public ChatHistory(string prompt)
         {
-            _messages = new List<ChatMessage>()
+            MessagesInternal = new List<ChatMessage>()
             {
                 new SystemChatMessage(prompt)
             };
         }
 
+        private int CalculateLength()
+        {
+            // using logic explained here:
+            // https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
+            var encoding = GptEncoding.GetEncodingForModel("gpt-35-turbo");
+
+            var tokens_per_message = 3; // message are encoded in the format:
+                                        // <|im_start|>role
+                                        // message
+                                        // <|im_end|>
+            var tokens_per_name = 1;
+
+            var result =
+                // sum the tokens in each message
+                MessagesInternal.Sum(x => encoding.Encode(x.GetContent() ?? "functionCall").Count()) +
+                // add the tokens for the name of each message
+                MessagesInternal.Where(x => !string.IsNullOrWhiteSpace(x.GetRole().ToString())).Count() * tokens_per_name +
+                // add the tokens for the role of each message
+                MessagesInternal.Count * tokens_per_message;
+
+            return result;
+        }
+
         public void AddMessage(ChatMessage message)
         {
-            _messages.Add(message);
+            MessagesInternal.Add(message);
 
-            this.ShowLog(message);
+            if (this.CalculateLength() > TokenLimit)
+            {
+                this.OnOverflow();
+            }
+        }
+
+        protected virtual void OnOverflow()
+        {
+            while (this.CalculateLength() > TokenLimit)
+            {
+                Console.WriteLine($"Removing message: {MessagesInternal[1].GetContent().Substring(0, Math.Min(40, MessagesInternal[1].GetContent().Length))}");
+
+                MessagesInternal.RemoveAt(1);
+            }
+        }
+
+        public override string ToString()
+        {
+            return $"Message count: {MessagesInternal.Count} - Total tokens: {this.CalculateLength()}";
         }
 
         private void ShowLog(ChatMessage message)
@@ -78,11 +121,6 @@ namespace OpenAIDemo.Server.Model
             Console.WriteLine(json);
 
             Console.ForegroundColor = forecolor;
-        }
-
-        public override string ToString()
-        {
-            return $"Message count: {_messages.Count}";
         }
 
         public string ToJson()

@@ -25,5 +25,13 @@ namespace OpenAIDemo.Server.Model
                 .Select(x => x.Text)
                 .FirstOrDefault();
         }
+
+        public static void AddRange(this IList<ChatTool> tools, IEnumerable<ChatTool> newTools)
+        {
+            foreach (var tool in newTools)
+            {
+                tools.Add(tool);
+            }
+        }
     }
 }

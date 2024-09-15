@@ -1,4 +1,4 @@
-﻿using Azure.AI.OpenAI;
+﻿using OpenAI.Chat;
 
 namespace OpenAIDemo.Server.Model
 {
@@ -15,28 +15,28 @@ namespace OpenAIDemo.Server.Model
 
         public bool HasItem { get; private set; }
 
-        public ChatRequestAssistantMessage CurrentItem { get; private set; }
+        public AssistantChatMessage CurrentItem { get; private set; }
 
-        public void Append(StreamingChatCompletionsUpdate item)
+        public void Append(StreamingChatCompletionUpdate item)
         {
-            if (item.ToolCallUpdate is StreamingFunctionToolCallUpdate functionToolCallUpdate)
+            foreach (var functionToolCallUpdate in item.ToolCallUpdates)
             {
-                if (!functions.ContainsKey(functionToolCallUpdate.ToolCallIndex))
+                if (!functions.ContainsKey(functionToolCallUpdate.Index))
                 {
-                    functions[functionToolCallUpdate.ToolCallIndex] = new FunctionCallDetails();
+                    functions[functionToolCallUpdate.Index] = new FunctionCallDetails();
                 }
-                
+
                 if (functionToolCallUpdate.Id != null)
                 {
-                    functions[functionToolCallUpdate.ToolCallIndex].Id = functionToolCallUpdate.Id;
+                    functions[functionToolCallUpdate.Index].Id = functionToolCallUpdate.Id;
                 }
-                if (functionToolCallUpdate.Name != null)
+                if (functionToolCallUpdate.FunctionName != null)
                 {
-                    functions[functionToolCallUpdate.ToolCallIndex].Name = functionToolCallUpdate.Name;
+                    functions[functionToolCallUpdate.Index].Name = functionToolCallUpdate.FunctionName;
                 }
-                if (functionToolCallUpdate.ArgumentsUpdate != null)
+                if (functionToolCallUpdate.FunctionArgumentsUpdate != null)
                 {
-                    functions[functionToolCallUpdate.ToolCallIndex].Arguments += functionToolCallUpdate.ArgumentsUpdate;
+                    functions[functionToolCallUpdate.Index].Arguments += functionToolCallUpdate.FunctionArgumentsUpdate;
                 }
             }
         }
@@ -51,10 +51,10 @@ namespace OpenAIDemo.Server.Model
 
             this.HasItem = true;
 
-            this.CurrentItem = new ChatRequestAssistantMessage(string.Empty);
+            this.CurrentItem = new AssistantChatMessage(string.Empty);
             foreach (var function in functions.Values)
             {
-                this.CurrentItem.ToolCalls.Add(new ChatCompletionsFunctionToolCall(function.Id, function.Name, function.Arguments));
+                this.CurrentItem.ToolCalls.Add(ChatToolCall.CreateFunctionToolCall(function.Id, function.Name, function.Arguments));
             }
             
             this.functions = new Dictionary<int, FunctionCallDetails>();

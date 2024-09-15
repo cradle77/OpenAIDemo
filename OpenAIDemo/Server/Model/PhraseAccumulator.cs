@@ -1,4 +1,4 @@
-﻿using Azure.AI.OpenAI;
+﻿using OpenAI.Chat;
 
 namespace OpenAIDemo.Server.Model
 {
@@ -9,22 +9,22 @@ namespace OpenAIDemo.Server.Model
 
         public bool HasItem { get; private set; }
 
-        public ChatRequestAssistantMessage CurrentItem { get; private set; }
+        public AssistantChatMessage CurrentItem { get; private set; }
 
-        public ChatRequestAssistantMessage Result => new ChatRequestAssistantMessage(result);
+        public AssistantChatMessage Result => new AssistantChatMessage(result);
 
-        public void Append(StreamingChatCompletionsUpdate item)
+        public void Append(StreamingChatCompletionUpdate item)
         {
             this.HasItem = false;
 
-            if (item.ContentUpdate == null)
+            if (item.ContentUpdate == null || !item.ContentUpdate.Any())
             {
                 return;
             }
 
-            currentPhrase += item.ContentUpdate;
+            currentPhrase += item.ContentUpdate[0].Text;
 
-            if (item.ContentUpdate.Contains("\n"))
+            if (item.ContentUpdate[0].Text.Contains("\n"))
             {
                 this.Flush();
             }
@@ -35,7 +35,7 @@ namespace OpenAIDemo.Server.Model
             if (!string.IsNullOrWhiteSpace(currentPhrase))
             {
                 this.HasItem = true;
-                this.CurrentItem = new ChatRequestAssistantMessage(currentPhrase);
+                this.CurrentItem = new AssistantChatMessage(currentPhrase);
             }
 
             result += currentPhrase;

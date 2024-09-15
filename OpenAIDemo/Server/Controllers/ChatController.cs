@@ -1,13 +1,12 @@
-﻿using Azure.AI.OpenAI;
-using Azure;
+﻿using Azure;
+using Azure.AI.OpenAI;
 using Microsoft.AspNetCore.Mvc;
-using OpenAIDemo.Shared;
-using System.Text.Json;
+using Microsoft.Extensions.Options;
+using OpenAI.Chat;
 using OpenAIDemo.Server.FunctionAdapters;
 using OpenAIDemo.Server.Model;
-using Microsoft.Net.Http.Headers;
-using System.Runtime.CompilerServices;
-using Microsoft.Extensions.Options;
+using OpenAIDemo.Shared;
+using System.Text.Json;
 
 namespace OpenAIDemo.Server.Controllers
 {
@@ -48,53 +47,52 @@ namespace OpenAIDemo.Server.Controllers
             }
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            AzureOpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            var chat = client.GetChatClient(_config.OpenAi.ChatEngine);
 
-            ChatChoice choice;
+            history.AddMessage(new UserChatMessage(message));
+
+            ChatCompletion completion;
             string result = string.Empty;
 
             do
             {
-                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-                history.Messages)
+                var options = new ChatCompletionOptions()
                 {
                     Temperature = 0.7f,
                     MaxTokens = 500,
                 };
                 options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
 
-                var response = await client.GetChatCompletionsAsync(options);
+                var response = await chat.CompleteChatAsync(history.Messages, options);
 
                 Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
 
-                choice = response.Value.Choices.First();
+                completion = response.Value;
 
-                if (choice.Message.Content != null)
+                if (completion.Content.Any())
                 {
-                    var responseMessage = choice.Message;
+                    var responseMessage = completion.Content[0].Text;
 
-                    history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
+                    history.AddMessage(new AssistantChatMessage(responseMessage));
 
-                    result += choice.Message.Content;
+                    result += responseMessage;
                 }
 
-                if (choice.Message.ToolCalls.Any())
+                if (completion.ToolCalls.Any())
                 {
-                    ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
+                    history.AddMessage(new AssistantChatMessage(completion));
 
-                    history.AddMessage(toolCallHistoryMessage);
+                    Console.WriteLine($"Number of tool calls: {completion.ToolCalls.Count}");
 
-                    Console.WriteLine($"Number of tool calls: {choice.Message.ToolCalls.Count}");
-
-                    foreach (var toolCall in choice.Message.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                    foreach (var toolCall in completion.ToolCalls)
                     {
                         history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
                     }
                 }
             }
-            while (choice.FinishReason != CompletionsFinishReason.Stopped);
+            while (completion.FinishReason != ChatFinishReason.Stop);
 
             Console.WriteLine(history.ToJson());
 
@@ -106,27 +104,28 @@ namespace OpenAIDemo.Server.Controllers
         {
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            AzureOpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            var chat = client.GetChatClient(_config.OpenAi.ChatEngine);
 
-            CompletionsFinishReason? finishReason = null;
+            history.AddMessage(new UserChatMessage(message));
+
+            ChatFinishReason? finishReason = null;
 
             do
             {
-                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-                history.Messages)
+                var options = new ChatCompletionOptions()
                 {
                     Temperature = 0.7f,
                     MaxTokens = 500,
                 };
                 options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
 
-                var response = await client.GetChatCompletionsStreamingAsync(options, token);
+                var response = chat.CompleteChatStreamingAsync(history.Messages, options, token);
 
                 var responseStreamer = new ResponseStreamer(response);
 
-                await foreach (var streamedResponse  in responseStreamer.GetPhrases(token))
+                await foreach (var streamedResponse in responseStreamer.GetPhrases(token))
                 {
                     if (streamedResponse.ToolCalls.Any())
                     {
@@ -134,15 +133,18 @@ namespace OpenAIDemo.Server.Controllers
 
                         history.AddMessage(streamedResponse);
 
-                        foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                        foreach (var toolCall in streamedResponse.ToolCalls)
                         {
                             history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
                         }
                     }
                     else
                     {
-                        Console.WriteLine($"Response: {streamedResponse.Content}");
-                        yield return streamedResponse.Content;
+                        foreach (ChatMessageContentPart contentPart in streamedResponse.Content)
+                        {
+                            Console.WriteLine($"Response: {contentPart.Text}");
+                            yield return contentPart.Text;
+                        }
                     }                    
                 }
 
@@ -154,8 +156,7 @@ namespace OpenAIDemo.Server.Controllers
                 finishReason = responseStreamer.FinishReason;
 
             }
-            while (finishReason != CompletionsFinishReason.Stopped);
-
+            while (finishReason != ChatFinishReason.Stop);
 
             Console.WriteLine(history);
         }

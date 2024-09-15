@@ -1,21 +1,20 @@
-﻿using Azure.AI.OpenAI;
-using System.Text;
+﻿using OpenAI.Chat;
 
 namespace OpenAIDemo.Server.Model
 {
     public class ResponseStreamer
     {
-        private IAsyncEnumerable<StreamingChatCompletionsUpdate> _sourceStream;
+        private IAsyncEnumerable<StreamingChatCompletionUpdate> _sourceStream;
 
-        public ResponseStreamer(IAsyncEnumerable<StreamingChatCompletionsUpdate> sourceStream)
+        public ResponseStreamer(IAsyncEnumerable<StreamingChatCompletionUpdate> sourceStream)
         {
             _sourceStream = sourceStream;
         }
 
-        public ChatRequestAssistantMessage Result { get; private set; }
-        public CompletionsFinishReason? FinishReason { get; internal set; }
+        public AssistantChatMessage Result { get; private set; }
+        public ChatFinishReason? FinishReason { get; internal set; }
 
-        public async IAsyncEnumerable<ChatRequestAssistantMessage> GetPhrases(CancellationToken cancellationToken)
+        public async IAsyncEnumerable<AssistantChatMessage> GetPhrases(CancellationToken cancellationToken)
         {
             FunctionAccumulator functionAccumulator = new();
             PhraseAccumulator phraseAccumulator = new();

@@ -1,4 +1,5 @@
 ﻿using Azure.AI.OpenAI;
+using OpenAI.Chat;
 
 namespace OpenAIDemo.Server.FunctionAdapters
 {
@@ -6,8 +7,8 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         string FunctionName { get; }
 
-        ChatCompletionsFunctionToolDefinition GetFunctionDefinition();
+        ChatTool GetFunctionDefinition();
 
-        Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments);
+        Task<ToolChatMessage> InvokeAsync(string id, string arguments);
     }
 }

@@ -1,12 +1,12 @@
-﻿using Azure.AI.OpenAI;
+﻿using OpenAI.Chat;
 
 namespace OpenAIDemo.Server.FunctionAdapters
 {
     public interface IFunctionHandler
     {
-        Task<ChatRequestToolMessage> ExecuteCallAsync(ChatCompletionsFunctionToolCall request);
+        Task<ToolChatMessage> ExecuteCallAsync(ChatToolCall request);
 
-        IEnumerable<ChatCompletionsFunctionToolDefinition> GetFunctionDefinitions();
+        IEnumerable<ChatTool> GetFunctionDefinitions();
     }
 
     internal class FunctionHandler : IFunctionHandler
@@ -18,23 +18,23 @@ namespace OpenAIDemo.Server.FunctionAdapters
             _adapters = adapters.ToDictionary(a => a.FunctionName);
         }
 
-        public async Task<ChatRequestToolMessage> ExecuteCallAsync(ChatCompletionsFunctionToolCall request)
+        public async Task<ToolChatMessage> ExecuteCallAsync(ChatToolCall request)
         {
-            if (!_adapters.ContainsKey(request.Name))
+            if (!_adapters.ContainsKey(request.FunctionName))
             {
-                throw new ArgumentException($"Function {request.Name} not found");
+                throw new ArgumentException($"Function {request.FunctionName} not found");
             }
 
-            Console.WriteLine($"Executing function {request.Name} with arguments {request.Arguments}");
+            Console.WriteLine($"Executing function {request.FunctionName} with arguments {request.FunctionArguments}");
 
-            var result = await _adapters[request.Name].InvokeAsync(request.Id, request.Arguments);
+            var result = await _adapters[request.FunctionName].InvokeAsync(request.Id, request.FunctionArguments);
 
-            Console.WriteLine($"Function {request.Name} returned {result.Content}");
+            Console.WriteLine($"Function {request.FunctionName} returned {result.Content[0].Text}");
 
             return result;
         }
 
-        public IEnumerable<ChatCompletionsFunctionToolDefinition> GetFunctionDefinitions()
+        public IEnumerable<ChatTool> GetFunctionDefinitions()
         {
             return _adapters.Values.Select(a => a.GetFunctionDefinition());
         }

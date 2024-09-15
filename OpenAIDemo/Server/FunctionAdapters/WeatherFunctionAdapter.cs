@@ -1,4 +1,4 @@
-﻿using Azure.AI.OpenAI;
+﻿using OpenAI.Chat;
 using OpenAIDemo.Shared;
 using System.Text.Json;
 
@@ -8,13 +8,13 @@ namespace OpenAIDemo.Server.FunctionAdapters
     {
         public string FunctionName => "get-weather";
 
-        public ChatCompletionsFunctionToolDefinition GetFunctionDefinition()
+        public ChatTool GetFunctionDefinition()
         {
-            return new ChatCompletionsFunctionToolDefinition()
-            {
-                Name = this.FunctionName,
-                Description = "Gets the weather forecasts for a given city for the specified dates. Ignore the temperatures in Farheneit in your responses, unless explicitly asked",
-                Parameters = BinaryData.FromObjectAsJson(new 
+            return ChatTool.CreateFunctionTool
+            (
+                functionName: this.FunctionName,
+                functionDescription: "Gets the weather forecasts for a given city for the specified dates. Ignore the temperatures in Farheneit in your responses, unless explicitly asked",
+                functionParameters: BinaryData.FromObjectAsJson(new 
                 {
                     Type = "object",
                     Properties = new
@@ -39,7 +39,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
                     },
                     Required = new[] { "location", "StartDate", "EndDate" },
                 }, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
-            };
+            );
         }
 
         private static readonly string[] Summaries = new[]
@@ -47,7 +47,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
             "Clear", "Partly Cloudy", "Overcast", "Rainy", "Thunderstorms", "Windy"
         };
 
-        public async Task<ChatRequestToolMessage> InvokeAsync(string id, string arguments)
+        public async Task<ToolChatMessage> InvokeAsync(string id, string arguments)
         {
             string result = null;
 
@@ -72,7 +72,7 @@ namespace OpenAIDemo.Server.FunctionAdapters
                 result = "Sorry, I couldn't get the weather for you. Check if the parameters are correct and try again if they aren't.";
             }
 
-            return new ChatRequestToolMessage(result, id);
+            return ChatMessage.CreateToolChatMessage(id, result);
         }
     }
 
