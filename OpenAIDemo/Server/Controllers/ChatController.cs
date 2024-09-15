@@ -59,7 +59,7 @@ namespace OpenAIDemo.Server.Controllers
 
             Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
 
-            var responseMessage = response.Value.Content;
+            var responseMessage = response.Value.Content[0].Text;
 
             history.AddMessage(new AssistantChatMessage(responseMessage));
 
