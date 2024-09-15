@@ -1,81 +1,62 @@
 ﻿using Azure.AI.OpenAI;
-using SharpToken;
+using OpenAI.Chat;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace OpenAIDemo.Server.Model
 {
     public class ChatHistory
     {
-        private List<ChatRequestMessage> _messages;
+        private List<ChatMessage> _messages;
 
-        public IEnumerable<ChatRequestMessage> Messages => _messages;
-
-        private const int TokenLimit = 4000;
+        public IEnumerable<ChatMessage> Messages => _messages;
 
         public ChatHistory()
         {
-            _messages = new List<ChatRequestMessage>()
+            _messages = new List<ChatMessage>()
             {
-                new ChatRequestSystemMessage($"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.")
+                new SystemChatMessage($"You are a very useful AI assistant who will answer questions.")
             };
+
+            this.ShowLog(_messages[0]);
         }
 
         public ChatHistory(string prompt)
         {
-            _messages = new List<ChatRequestMessage>()
+            _messages = new List<ChatMessage>()
             {
-                new ChatRequestSystemMessage(prompt)
+                new SystemChatMessage(prompt)
             };
         }
 
-        private int CalculateLength()
-        {
-            // using logic explained here:
-            // https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
-            var encoding = GptEncoding.GetEncodingForModel("gpt-35-turbo");
-
-            var tokens_per_message = 3; // message are encoded in the format:
-                                        // <|im_start|>role
-                                        // message
-                                        // <|im_end|>
-            var tokens_per_name = 1;
-
-            var result =
-                // sum the tokens in each message
-                _messages.Sum(x => encoding.Encode(x.GetContent() ?? string.Empty).Count()) +
-                // add the tokens for the name of each message
-                _messages.Where(x => !string.IsNullOrWhiteSpace(x.Role.ToString())).Count() * tokens_per_name +
-                // add the tokens for the role of each message
-                _messages.Count * tokens_per_message;
-
-            return result;
-        }
-
-        public void AddMessage(ChatRequestMessage message)
+        public void AddMessage(ChatMessage message)
         {
             _messages.Add(message);
 
-            while (this.CalculateLength() > TokenLimit)
-            {
-                Console.WriteLine($"Removing message: {_messages[1].GetContent().Substring(0, Math.Min(40, _messages[1].GetContent().Length))}");
-
-                _messages.RemoveAt(1);
-            }
+            this.ShowLog(message);
         }
 
-        private void ShowLog(ChatRequestMessage message)
+        private void ShowLog(ChatMessage message)
         {
             var forecolor = Console.ForegroundColor;
 
-            if (message.Role == ChatRole.System)
+            if (message.GetRole() == ChatMessageRole.System)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
             }
-            else if (message.Role == ChatRole.User)
+            else if (message.GetRole() == ChatMessageRole.User)
             {
-                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.ForegroundColor = ConsoleColor.Green;
             }
-            else if (message.Role == ChatRole.Assistant)
+            else if (message.GetRole() == ChatMessageRole.Tool)
+            {
+                Console.ForegroundColor = ConsoleColor.Blue;
+            }
+            else if (message.GetRole() == ChatMessageRole.Function)
+            {
+                Console.ForegroundColor = ConsoleColor.Magenta;
+            }
+            else if (message is AssistantChatMessage)
             {
                 Console.ForegroundColor = ConsoleColor.White;
             }
@@ -83,9 +64,16 @@ namespace OpenAIDemo.Server.Model
             var json = JsonSerializer.Serialize(
                 new
                 {
-                    Role = message.Role.ToString(), 
-                    Content = message.GetContent()
-                }, new JsonSerializerOptions() { WriteIndented = true });
+                    Role = message.GetRole().ToString(),
+                    Content = message.GetContent(),
+                }, new JsonSerializerOptions()
+                {
+                    WriteIndented = true,
+                    Converters =
+                    {
+                        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+                    }
+                });
 
             Console.WriteLine(json);
 
@@ -94,17 +82,24 @@ namespace OpenAIDemo.Server.Model
 
         public override string ToString()
         {
-            return $"Message count: {_messages.Count} - Total tokens: {this.CalculateLength()}";
+            return $"Message count: {_messages.Count}";
         }
 
         public string ToJson()
         {
             return JsonSerializer.Serialize(
-                this.Messages.Select(x => new 
-                { 
-                    Role = x.Role.ToString(), 
-                    Content = x.GetContent()
-                }), new JsonSerializerOptions() { WriteIndented = true });
+                this.Messages.Select(x => new
+                {
+                    Role = x.GetRole(),
+                    Content = x.GetContent(),
+                }), new JsonSerializerOptions()
+                {
+                    WriteIndented = true,
+                    Converters =
+                    {
+                        new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+                    }
+                });
         }
     }
 }
