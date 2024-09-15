@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Shared;
 
@@ -48,13 +49,19 @@ namespace OpenAIDemo.Server.Controllers
 
             history.ShowLastLog();
 
-            var result = await _chat.GetChatMessageContentAsync(history);
+            var result = await _chat.GetChatMessageContentAsync(history, new AzureOpenAIPromptExecutionSettings() 
+            {
+                MaxTokens = 500,
+                Temperature = 0.7f,
+            });
 
             string responseMessage = result.ToString();
 
             history.AddAssistantMessage(responseMessage);
 
             history.ShowLastLog();
+
+            history.ShowCount();
 
             return Ok(responseMessage);
         }
@@ -68,7 +75,11 @@ namespace OpenAIDemo.Server.Controllers
 
             history.ShowLastLog();
 
-            var result = _chat.GetStreamingChatMessageContentsAsync(history);
+            var result = _chat.GetStreamingChatMessageContentsAsync(history, new AzureOpenAIPromptExecutionSettings()
+            {
+                MaxTokens = 500,
+                Temperature = 0.7f,
+            });
 
             var fullResponse = string.Empty;
 
@@ -84,6 +95,8 @@ namespace OpenAIDemo.Server.Controllers
             history.AddAssistantMessage(fullResponse);
 
             history.ShowLastLog();
+
+            history.ShowCount();
         }
     }
 }
