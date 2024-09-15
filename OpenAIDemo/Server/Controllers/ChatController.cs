@@ -1,13 +1,11 @@
 ﻿using Azure;
 using Azure.AI.OpenAI;
-using Azure.AI.OpenAI.Chat;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using OpenAI.Chat;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Server.Queuing;
 using OpenAIDemo.Shared;
-using System.Net;
 using System.Text.Json;
 
 namespace OpenAIDemo.Server.Controllers
@@ -77,21 +75,22 @@ namespace OpenAIDemo.Server.Controllers
         {
             var history = _sessions[sessionId];
 
-            var content = new List<ChatMessageContentItem>();
+            var content = new List<ChatMessageContentPart>();
             // add the text payload
-            content.Add(new ChatMessageTextContentItem(payload.First()));
+            content.Add(ChatMessageContentPart.CreateTextMessageContentPart(payload.First()));
             // add all the images
             foreach (var image in payload.Skip(1))
             {
-                content.Add(new ChatMessageImageContentItem(new Uri(image)));
+                content.Add(ChatMessageContentPart.CreateImageMessageContentPart(new Uri(image)));
             }
+
+            AzureOpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+
+            var chat = client.GetChatClient(_config.OpenAi.ChatEngine);
+
+            history.AddMessage(new UserChatMessage(content));
             
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
-            
-            history.AddMessage(new ChatRequestUserMessage(content));
-            
-            var response = await client.GetChatCompletionsStreamingAsync(new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-                history.Messages)
+            var response = chat.CompleteChatStreamingAsync(history.Messages, new ChatCompletionOptions
             {
                 Temperature = 0.7f,
                 MaxTokens = 500,
