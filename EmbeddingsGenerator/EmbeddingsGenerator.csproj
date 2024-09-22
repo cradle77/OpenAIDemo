@@ -24,7 +24,7 @@
 		<PackageReference Include="CsvHelper" Version="30.0.1" />
 		<PackageReference Include="SharpToken" Version="1.2.6" />
 		<PackageReference Include="Azure.AI.OpenAI" Version="1.0.0-beta.6" />
-		<PackageReference Include="Azure.Identity" Version="1.10.0-beta.1" />
+		<PackageReference Include="Azure.Identity" Version="1.12.0" />
 		<PackageReference Include="System.Linq.Async" Version="6.0.1" />
 	</ItemGroup>
 
