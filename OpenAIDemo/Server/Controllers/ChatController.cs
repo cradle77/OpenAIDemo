@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Azure.Search.Documents.Models;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
@@ -82,8 +83,10 @@ namespace OpenAIDemo.Server.Controllers
             });
 
             var fullResponse = string.Empty;
+            //var streamer = new PhraseStreamer(result);
 
             await foreach (var responseMessage in result)
+            //await foreach (var responseMessage in streamer.GetPhrases(token))
             {
                 fullResponse += responseMessage.Content;
 
@@ -93,6 +96,7 @@ namespace OpenAIDemo.Server.Controllers
             }
 
             history.AddAssistantMessage(fullResponse);
+            //history.AddAssistantMessage(streamer.Result);
 
             history.ShowLastLog();
 

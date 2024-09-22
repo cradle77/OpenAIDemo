@@ -1,32 +1,34 @@
-﻿using Azure.AI.OpenAI;
+﻿using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using OpenAI.Chat;
 
 namespace OpenAIDemo.Server.Model
 {
     public class PhraseStreamer
     {
-        private IAsyncEnumerable<StreamingChatCompletionsUpdate> _sourceStream;
+        private IAsyncEnumerable<StreamingChatMessageContent> _sourceStream;
 
-        public PhraseStreamer(IAsyncEnumerable<StreamingChatCompletionsUpdate> sourceStream)
+        public PhraseStreamer(IAsyncEnumerable<StreamingChatMessageContent> sourceStream)
         {
             _sourceStream = sourceStream;
         }
 
-        public ChatRequestAssistantMessage Result { get; private set; }
+        public string Result { get; private set; }
 
-        public async IAsyncEnumerable<ChatRequestAssistantMessage> GetPhrases(CancellationToken cancellationToken)
+        public async IAsyncEnumerable<StreamingChatMessageContent> GetPhrases(CancellationToken cancellationToken)
         {
             string currentPhrase = string.Empty;
             string result = string.Empty;
 
             await foreach (var item in _sourceStream.WithCancellation(cancellationToken))
             {
-                currentPhrase += item.ContentUpdate;
+                currentPhrase += item.Content;
 
-                if (string.IsNullOrEmpty(item.ContentUpdate) || item.ContentUpdate.Contains("\n"))
+                if (string.IsNullOrEmpty(item.Content) || item.Content.Contains("\n"))
                 {
                     if (!string.IsNullOrWhiteSpace(currentPhrase))
                     {
-                        yield return new ChatRequestAssistantMessage(currentPhrase);
+                        yield return new StreamingChatMessageContent(AuthorRole.Assistant, currentPhrase);
                     }
 
                     result += currentPhrase;
@@ -37,10 +39,10 @@ namespace OpenAIDemo.Server.Model
             if (!string.IsNullOrEmpty(currentPhrase))
             {
                 result += currentPhrase;
-                yield return new ChatRequestAssistantMessage(currentPhrase);
+                yield return new StreamingChatMessageContent(AuthorRole.Assistant, currentPhrase);
             }
 
-            this.Result = new ChatRequestAssistantMessage(result);
+            this.Result = result;
         }
     }
 }
