@@ -56,7 +56,7 @@ namespace OpenAIDemo.Server.Model
 
     internal static class ChatHistorySizeControlExtensions 
     {
-        private const int TOKEN_LIMIT = 5000;
+        private const int TOKEN_LIMIT = 700;
 
         public static void ShowCount(this ChatHistory history)
         {
@@ -86,7 +86,7 @@ namespace OpenAIDemo.Server.Model
             return result;
         }
 
-        public static void EnsureChatHistorySize(this ChatHistory history, int tokenLimit = TOKEN_LIMIT)
+        public static void TrimToMaxSize(this ChatHistory history, int tokenLimit = TOKEN_LIMIT)
         {
             while (history.CalculateLength() > tokenLimit)
             {
