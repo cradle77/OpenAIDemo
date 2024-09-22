@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -53,18 +55,56 @@ namespace OpenAIDemo.Server.Controllers
 
             history.ShowLastLog();
 
-            var result = await _chat.GetChatMessageContentAsync(history, new AzureOpenAIPromptExecutionSettings() 
+            string responseMessage = string.Empty;
+
+            while (true)
             {
-                MaxTokens = 500,
-                Temperature = 0.7f,
-                ToolCallBehavior = ToolCallBehavior.EnableKernelFunctions
-            }, _kernel);
+                var result = await _chat.GetChatMessageContentAsync(history, new AzureOpenAIPromptExecutionSettings()
+                {
+                    MaxTokens = 500,
+                    Temperature = 0.7f,
+                    ToolCallBehavior = ToolCallBehavior.EnableKernelFunctions
+                }, _kernel);
 
-            string responseMessage = result.ToString();
+                if (!string.IsNullOrEmpty(result.Content))
+                {
+                    responseMessage += result.Content;
+                }
 
-            history.AddAssistantMessage(responseMessage);
+                // Step 1: add to the history, including the possible function calls
+                history.AddAssistantMessage(responseMessage);
+                history.ShowLastLog();
 
-            history.ShowLastLog();
+                IEnumerable<FunctionCallContent> functionCalls = FunctionCallContent.GetFunctionCalls(result);
+                if (!functionCalls.Any())
+                {
+                    break;
+                }
+
+                // Step 2: trigger the execution and await
+                var functionExecutions =
+                    functionCalls.Select(async f =>
+                    {
+                        try
+                        {
+                            return await f.InvokeAsync(_kernel);
+                        }
+                        catch (Exception ex)
+                        {
+                            return new FunctionResultContent(f, ex);
+                        }
+
+                    });
+
+                var functionResponses = await Task.WhenAll(functionExecutions);
+
+                // Step 3: add the responses to the history
+                foreach (var functionResponse in functionResponses)
+                {
+                    history.Add(functionResponse.ToChatMessage());
+                    history.ShowLastLog();
+                }
+            }
 
             history.ShowCount();
 
@@ -91,9 +131,7 @@ namespace OpenAIDemo.Server.Controllers
             {
                 var fullResponse = string.Empty;
 
-#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                 var functionCallBuilder = new FunctionCallContentBuilder();
-#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
                 await foreach (var responseMessage in result)
                 {
@@ -108,6 +146,7 @@ namespace OpenAIDemo.Server.Controllers
                 }
 
                 history.AddAssistantMessage(fullResponse);
+                history.ShowLastLog();
 
                 // handling functions
                 var functionCalls = functionCallBuilder.Build();
@@ -129,6 +168,7 @@ namespace OpenAIDemo.Server.Controllers
                     functionRequests.Items.Add(functionRequest);
                 }
                 history.Add(functionRequests);
+                history.ShowLastLog();
 
                 // Step 2: trigger the execution and await
                 var functionExecutions =
@@ -140,19 +180,18 @@ namespace OpenAIDemo.Server.Controllers
                         }
                         catch (Exception ex)
                         {
-#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                             return new FunctionResultContent(f, ex);
-#pragma warning restore SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
                         }
                         
                     });
 
                 var functionResponses = await Task.WhenAll(functionExecutions);
 
-                // step 3: add the requests and responses to the history
+                // step 3: add the responses to the history
                 foreach (var functionResponse in functionResponses)
                 {
                     history.Add(functionResponse.ToChatMessage());
+                    history.ShowLastLog();
                 }
             }
 
