@@ -5,13 +5,13 @@ namespace OpenAIDemo.Server.Plugins
 {
     public class ShoppingListPlugin
     {
-        public List<ShoppingListItem> Items { get; } = new List<ShoppingListItem>();
+        public static List<ShoppingListItem> Items { get; } = new List<ShoppingListItem>();
 
         [KernelFunction("get_shopping_list")]
         [Description("This function returns the current content of the shopping list.")]
         public List<ShoppingListItem> GetShoppingList()
         {
-            return this.Items;
+            return Items;
         }
 
         [KernelFunction("add_shopping_list_item")]
@@ -23,8 +23,8 @@ namespace OpenAIDemo.Server.Plugins
                 item.Quantity = 1;
             }
 
-            this.Items.Add(item);
-            return this.Items;
+            Items.Add(item);
+            return Items;
         }
 
         [KernelFunction("modify_shopping_list_item")]
@@ -33,11 +33,11 @@ namespace OpenAIDemo.Server.Plugins
         {
             if (item.Quantity == 0)
             {
-                this.Items.RemoveAll(x => x.Description == item.Description);
+                Items.RemoveAll(x => x.Description == item.Description);
             }
             else
             {
-                var original = this.Items.FirstOrDefault(x => x.Description == item.Description);
+                var original = Items.FirstOrDefault(x => x.Description == item.Description);
                 if (original == null)
                 {
                     throw new InvalidOperationException($"Item {item.Description} not found in the shopping list");
@@ -45,7 +45,7 @@ namespace OpenAIDemo.Server.Plugins
                 original.Quantity = item.Quantity;
             }
 
-            return this.Items;
+            return Items;
         }
     }
 
