@@ -1,9 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Azure;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using OpenAI.Chat;
+using OpenAI;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Shared;
+using Microsoft.SemanticKernel;
 
 namespace OpenAIDemo.Server.Controllers
 {
@@ -67,11 +71,23 @@ namespace OpenAIDemo.Server.Controllers
         }
 
         [HttpPost("{sessionId}/message-stream")]
-        public async IAsyncEnumerable<string> PostMessageStream(Guid sessionId, [FromBody] string message, CancellationToken token)
+        public async IAsyncEnumerable<string> PostMessageStream(Guid sessionId, [FromBody] string[] payload, CancellationToken token)
         {
             var history = _sessions[sessionId];
 
-            history.AddUserMessage(message);
+            var content = new ChatMessageContentItemCollection()
+            { 
+                // add text prompt
+                new TextContent(payload.First())
+            };
+
+            // add images, if any
+            foreach (var image in payload.Skip(1))
+            {
+                content.Add(new ImageContent(new Uri(image)));
+            }
+
+            history.AddUserMessage(content);
 
             history.ShowLastLog();
 
