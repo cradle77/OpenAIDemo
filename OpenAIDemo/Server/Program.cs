@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using OpenAIDemo.Server.Model;
+using OpenAIDemo.Server.Plugins;
 
 namespace OpenAIDemo
 {
@@ -30,11 +32,18 @@ namespace OpenAIDemo
             builder.Services.AddControllersWithViews();
             builder.Services.AddRazorPages();
             builder.Services.AddHttpClient();
-            builder.Services.AddTransient<IFunctionAdapter, WeatherFunctionAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, ShoppingAddAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, ShoppingGetListAdapter>();
-            builder.Services.AddTransient<IFunctionAdapter, ShoppingModifyAdapter>();
-            builder.Services.AddSingleton<IFunctionHandler, FunctionHandler>();
+
+            builder.Services.AddSingleton<ShoppingListPlugin>();
+            builder.Services.AddSingleton<WeatherPlugin>();
+
+            builder.Services.AddTransient<KernelPluginCollection>((serviceProvider) =>
+                new KernelPluginCollection()
+                {
+                    KernelPluginFactory.CreateFromType<ShoppingListPlugin>("ShoppingList", serviceProvider),
+                    KernelPluginFactory.CreateFromType<WeatherPlugin>("Weather", serviceProvider)
+                });
+
+            builder.Services.AddTransient<Kernel>();
 
             var app = builder.Build();
 

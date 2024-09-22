@@ -1,8 +1,9 @@
-﻿using Azure.Search.Documents.Models;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Shared;
 
@@ -15,16 +16,18 @@ namespace OpenAIDemo.Server.Controllers
         private static Dictionary<Guid, ChatHistory> _sessions;
         private AzureConfig _config;
         private IChatCompletionService _chat;
+        private Kernel _kernel;
 
         static ChatController()
         {
             _sessions = new Dictionary<Guid, ChatHistory>();
         }
 
-        public ChatController(IOptions<AzureConfig> config, IChatCompletionService chat)
+        public ChatController(IOptions<AzureConfig> config, IChatCompletionService chat, Kernel kernel)
         {
             _config = config.Value;
             _chat = chat;
+            _kernel = kernel;
         }
 
         [HttpPost()]
@@ -54,7 +57,8 @@ namespace OpenAIDemo.Server.Controllers
             {
                 MaxTokens = 500,
                 Temperature = 0.7f,
-            });
+                ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
+            }, _kernel);
 
             string responseMessage = result.ToString();
 
@@ -80,23 +84,19 @@ namespace OpenAIDemo.Server.Controllers
             {
                 MaxTokens = 500,
                 Temperature = 0.7f,
-            });
+                ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions
+            }, _kernel);
 
             var fullResponse = string.Empty;
-            //var streamer = new PhraseStreamer(result);
 
             await foreach (var responseMessage in result)
-            //await foreach (var responseMessage in streamer.GetPhrases(token))
             {
                 fullResponse += responseMessage.Content;
-
-                Console.WriteLine(responseMessage.Content);
 
                 yield return responseMessage.Content;
             }
 
             history.AddAssistantMessage(fullResponse);
-            //history.AddAssistantMessage(streamer.Result);
 
             history.ShowLastLog();
 
