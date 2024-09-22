@@ -35,7 +35,7 @@ namespace OpenAIDemo.Server.Controllers
         {
             var sessionId = Guid.NewGuid();
 
-            _sessions.Add(sessionId, new ChatHistory($"You are a very useful AI assistant who will answer questions.").ShowLog());
+            _sessions.Add(sessionId, new ChatHistory($"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.").ShowLog());
             return Ok(new ChatSession() { Id = sessionId });
         }
 
