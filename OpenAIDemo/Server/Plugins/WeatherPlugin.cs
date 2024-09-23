@@ -11,7 +11,7 @@ namespace OpenAIDemo.Server.Plugins
         {
             "Clear", "Partly Cloudy", "Overcast", "Rainy", "Thunderstorms", "Windy"
         };
-        
+
         [KernelFunction("get_weather")]
         [Description("Gets the weather forecasts for a given city for the specified dates. Ignore the temperatures in Farheneit in your responses, unless explicitly asked")]
         [return: Description("An array of weather forecasts")]
@@ -19,7 +19,7 @@ namespace OpenAIDemo.Server.Plugins
         {
             try
             {
-                var forecasts = Enumerable.Range(0, query.NumberOfDays).Select(index => new WeatherForecast
+                var forecasts = Enumerable.Range(0, query.GetNumberOfDays()).Select(index => new WeatherForecast
                 {
                     Date = DateOnly.FromDateTime(query.StartDate.GetValueOrDefault(DateTime.Today)).AddDays(index),
                     TemperatureC = Random.Shared.Next(15, 25),
@@ -49,18 +49,15 @@ namespace OpenAIDemo.Server.Plugins
         [Description("The end date for the weather forecast, yyyy-MM-dd format. Example: 2024-02-28")]
         public DateTime? EndDate { get; set; }
 
-        public int NumberOfDays
+        public int GetNumberOfDays()
         {
-            get
+            if (StartDate.HasValue && EndDate.HasValue)
             {
-                if (StartDate.HasValue && EndDate.HasValue)
-                {
-                    return (int)(EndDate.Value - StartDate.Value).TotalDays + 1;
-                }
-                else
-                {
-                    return 5;
-                }
+                return (int)(EndDate.Value - StartDate.Value).TotalDays + 1;
+            }
+            else
+            {
+                return 5;
             }
         }
     }

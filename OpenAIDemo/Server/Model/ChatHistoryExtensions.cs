@@ -1,5 +1,7 @@
 ﻿using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace OpenAIDemo.Server.Model
@@ -45,7 +47,7 @@ namespace OpenAIDemo.Server.Model
                 {
                     Role = message.Role.ToString(),
                     Content = message.ToString()
-                }, new JsonSerializerOptions() { WriteIndented = true });
+                }, new JsonSerializerOptions() { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
 
             Console.WriteLine(json);
 
