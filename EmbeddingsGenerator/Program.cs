@@ -1,5 +1,6 @@
-﻿using Azure;
-using Azure.AI.OpenAI;
+﻿#pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Indexes;
 using Azure.Search.Documents.Indexes.Models;
@@ -7,6 +8,7 @@ using Azure.Search.Documents.Models;
 using CsvHelper;
 using EmbeddingsGenerator;
 using Microsoft.Extensions.Configuration;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using System.Globalization;
 
 var builder = new ConfigurationBuilder()
@@ -32,8 +34,8 @@ await QueryIndexAsync();
 
 async Task QueryIndexAsync()
 {
+    AzureOpenAITextEmbeddingGenerationService embeddingService = new(engine, openAiEndpoint, openAiKey);
     var searchClient = new SearchClient(searchUrl, indexName, searchCredential);
-    OpenAIClient openAiclient = new(new Uri(openAiEndpoint), new AzureKeyCredential(openAiKey));
 
     while (true)
     {
@@ -42,10 +44,9 @@ async Task QueryIndexAsync()
 
         // calculating embeddings of the query
 
-        var openAiResponse = await openAiclient.GetEmbeddingsAsync(
-                new EmbeddingsOptions(engine, new[] { query }));
+        var openAiResponse = await embeddingService.GenerateEmbeddingsAsync(new[] { query });
 
-        var queryEmbeddings = openAiResponse.Value.Data[0].Embedding;
+        var queryEmbeddings = openAiResponse[0].ToArray();
 
         // searching the index for the closest embeddings
         var searchOptions = new SearchOptions
@@ -119,7 +120,7 @@ async void CreateIndexAsync()
 
     var searchClient = new SearchClient(searchUrl, indexName, searchCredential);
 
-    OpenAIClient client = new(new Uri(openAiEndpoint), new AzureKeyCredential(openAiKey));
+    AzureOpenAITextEmbeddingGenerationService embeddingService = new(engine, openAiEndpoint, openAiKey);
 
     Console.WriteLine("Calculating embeddings and populating index");
 
@@ -140,12 +141,11 @@ async void CreateIndexAsync()
             Console.WriteLine($"Calculating batch {++i}");
             var inputs = batch.ToList();
 
-            var result = await client.GetEmbeddingsAsync(
-                new EmbeddingsOptions(engine, batch.Select(x => x.GetEmbeddingInput())));
+            var result = await embeddingService.GenerateEmbeddingsAsync(batch.Select(x => x.GetEmbeddingInput()).ToList());
 
-            foreach (var itemResult in result.Value.Data)
+            for (int index = 0; index < result.Count; index++)
             {
-                inputs[itemResult.Index].Embedding = itemResult.Embedding.ToArray();
+                inputs[index].Embedding = result[index].ToArray();
             }
 
             Console.WriteLine($"Indexing batch {i}");
