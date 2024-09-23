@@ -81,6 +81,8 @@ namespace OpenAIDemo.Server.Controllers
                     break;
                 }
 
+                Console.WriteLine($"Requested execution of {functionCalls.Count()} functions");
+
                 // Step 2: trigger the execution and await
                 var functionExecutions =
                     functionCalls.Select(async f =>
@@ -102,7 +104,6 @@ namespace OpenAIDemo.Server.Controllers
                 foreach (var functionResponse in functionResponses)
                 {
                     history.Add(functionResponse.ToChatMessage());
-                    history.ShowLastLog();
                 }
             }
 
@@ -168,7 +169,6 @@ namespace OpenAIDemo.Server.Controllers
                     functionRequests.Items.Add(functionRequest);
                 }
                 history.Add(functionRequests);
-                history.ShowLastLog();
 
                 // Step 2: trigger the execution and await
                 var functionExecutions =
@@ -191,7 +191,6 @@ namespace OpenAIDemo.Server.Controllers
                 foreach (var functionResponse in functionResponses)
                 {
                     history.Add(functionResponse.ToChatMessage());
-                    history.ShowLastLog();
                 }
             }
 
