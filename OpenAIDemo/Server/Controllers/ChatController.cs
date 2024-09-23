@@ -1,13 +1,13 @@
-﻿using Azure.AI.OpenAI;
-using Azure;
+﻿#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
 using Microsoft.AspNetCore.Mvc;
-using OpenAIDemo.Shared;
-using System.Text.Json;
-using OpenAIDemo.Server.FunctionAdapters;
-using OpenAIDemo.Server.Model;
-using Microsoft.Net.Http.Headers;
-using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
+using OpenAIDemo.Server.Model;
+using OpenAIDemo.Shared;
 
 namespace OpenAIDemo.Server.Controllers
 {
@@ -16,18 +16,20 @@ namespace OpenAIDemo.Server.Controllers
     public class ChatController : ControllerBase
     {
         private static Dictionary<Guid, ChatHistory> _sessions;
-        private IFunctionHandler _functionHandler;
         private AzureConfig _config;
+        private IChatCompletionService _chat;
+        private Kernel _kernel;
 
         static ChatController()
         {
             _sessions = new Dictionary<Guid, ChatHistory>();
         }
 
-        public ChatController(IOptions<AzureConfig> config, IFunctionHandler functionHandler)
+        public ChatController(IOptions<AzureConfig> config, IChatCompletionService chat, Kernel kernel)
         {
-            _functionHandler = functionHandler;
             _config = config.Value;
+            _chat = chat;
+            _kernel = kernel;
         }
 
         [HttpPost()]
@@ -35,7 +37,7 @@ namespace OpenAIDemo.Server.Controllers
         {
             var sessionId = Guid.NewGuid();
 
-            _sessions.Add(sessionId, new ChatHistory());
+            _sessions.Add(sessionId, new ChatHistory($"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring. Today's date is in European format is {DateTime.Today.ToShortDateString()}.").ShowLog());
             return Ok(new ChatSession() { Id = sessionId });
         }
 
@@ -46,61 +48,68 @@ namespace OpenAIDemo.Server.Controllers
             {
                 return NotFound();
             }
+
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            history.AddUserMessage(message);
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            history.ShowLastLog();
 
-            ChatChoice choice;
-            string result = string.Empty;
+            string responseMessage = string.Empty;
 
-            do
+            while (true)
             {
-                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-                history.Messages)
+                var result = await _chat.GetChatMessageContentAsync(history, new AzureOpenAIPromptExecutionSettings()
                 {
-                    Temperature = 0.7f,
                     MaxTokens = 500,
-                };
-                options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
+                    Temperature = 0.7f,
+                    ToolCallBehavior = ToolCallBehavior.EnableKernelFunctions
+                }, _kernel);
 
-                var response = await client.GetChatCompletionsAsync(options);
-
-                Console.WriteLine(JsonSerializer.Serialize(response.Value.Usage));
-
-                choice = response.Value.Choices.First();
-
-                if (choice.Message.Content != null)
+                if (!string.IsNullOrEmpty(result.Content))
                 {
-                    var responseMessage = choice.Message;
-
-                    history.AddMessage(new ChatRequestAssistantMessage(responseMessage.Content));
-
-                    result += choice.Message.Content;
+                    responseMessage += result.Content;
                 }
 
-                if (choice.Message.ToolCalls.Any())
+                // Step 1: add to the history, including the possible function calls
+                history.Add(result);
+                history.ShowLastLog();
+
+                IEnumerable<FunctionCallContent> functionCalls = FunctionCallContent.GetFunctionCalls(result);
+                if (!functionCalls.Any())
                 {
-                    ChatRequestAssistantMessage toolCallHistoryMessage = new(choice.Message);
+                    break;
+                }
 
-                    history.AddMessage(toolCallHistoryMessage);
+                Console.WriteLine($"Requested execution of {functionCalls.Count()} functions");
 
-                    Console.WriteLine($"Number of tool calls: {choice.Message.ToolCalls.Count}");
-
-                    foreach (var toolCall in choice.Message.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
+                // Step 2: trigger the execution and await
+                var functionExecutions =
+                    functionCalls.Select(async f =>
                     {
-                        history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
-                    }
+                        try
+                        {
+                            return await f.InvokeAsync(_kernel);
+                        }
+                        catch (Exception ex)
+                        {
+                            return new FunctionResultContent(f, ex);
+                        }
+
+                    });
+
+                var functionResponses = await Task.WhenAll(functionExecutions);
+
+                // Step 3: add the responses to the history
+                foreach (var functionResponse in functionResponses)
+                {
+                    history.Add(functionResponse.ToChatMessage());
                 }
             }
-            while (choice.FinishReason != CompletionsFinishReason.Stopped);
 
-            history.AddMessage(new ChatRequestAssistantMessage(result));
+            history.ShowCount();
 
-            Console.WriteLine(history);
-
-            return Ok(result);
+            return Ok(responseMessage);
         }
 
         [HttpPost("{sessionId}/message-stream")]
@@ -108,58 +117,84 @@ namespace OpenAIDemo.Server.Controllers
         {
             var history = _sessions[sessionId];
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            history.AddUserMessage(message);
 
-            history.AddMessage(new ChatRequestUserMessage(message));
+            history.ShowLastLog();
 
-            CompletionsFinishReason? finishReason = null;
-
-            do
+            var result = _chat.GetStreamingChatMessageContentsAsync(history, new AzureOpenAIPromptExecutionSettings()
             {
-                var options = new ChatCompletionsOptions(_config.OpenAi.ChatEngine,
-                history.Messages)
+                MaxTokens = 500,
+                Temperature = 0.7f,
+                ToolCallBehavior = ToolCallBehavior.EnableKernelFunctions
+            }, _kernel);
+
+            while(true)
+            {
+                var fullResponse = string.Empty;
+
+                var functionCallBuilder = new FunctionCallContentBuilder();
+
+                await foreach (var responseMessage in result)
                 {
-                    Temperature = 0.7f,
-                    MaxTokens = 500,
-                };
-                options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
-
-                var response = await client.GetChatCompletionsStreamingAsync(options, token);
-
-                var responseStreamer = new ResponseStreamer(response);
-
-                await foreach (var streamedResponse  in responseStreamer.GetPhrases(token))
-                {
-                    if (streamedResponse.ToolCalls.Any())
+                    if (responseMessage.Content != null)
                     {
-                        Console.WriteLine($"Number of tool calls: {streamedResponse.ToolCalls.Count}");
+                        fullResponse += responseMessage.Content;
 
-                        history.AddMessage(streamedResponse);
-
-                        foreach (var toolCall in streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>())
-                        {
-                            history.AddMessage(await _functionHandler.ExecuteCallAsync(toolCall));
-                        }
+                        yield return responseMessage.Content;
                     }
-                    else
-                    {
-                        Console.WriteLine($"Response: {streamedResponse.Content}");
-                        yield return streamedResponse.Content;
-                    }                    
+                    
+                    functionCallBuilder.Append(responseMessage);
                 }
 
-                if (responseStreamer.Result != null)
+                history.AddAssistantMessage(fullResponse);
+                history.ShowLastLog();
+
+                // handling functions
+                var functionCalls = functionCallBuilder.Build();
+
+                if (!functionCalls.Any())
                 {
-                    history.AddMessage(responseStreamer.Result);
+                    break; // no function calls, the loop is finished
                 }
 
-                finishReason = responseStreamer.FinishReason;
+                Console.WriteLine($"Requested execution of {functionCalls.Count()} functions");
 
+                // step 1: add the request container to the history
+                var functionRequests = new ChatMessageContent(
+                    role: AuthorRole.Assistant, 
+                    content: null);
+
+                foreach (var functionRequest in functionCalls)
+                {
+                    functionRequests.Items.Add(functionRequest);
+                }
+                history.Add(functionRequests);
+
+                // Step 2: trigger the execution and await
+                var functionExecutions =
+                    functionCalls.Select(async f => 
+                    {
+                        try
+                        {
+                            return await f.InvokeAsync(_kernel);
+                        }
+                        catch (Exception ex)
+                        {
+                            return new FunctionResultContent(f, ex);
+                        }
+                        
+                    });
+
+                var functionResponses = await Task.WhenAll(functionExecutions);
+
+                // step 3: add the responses to the history
+                foreach (var functionResponse in functionResponses)
+                {
+                    history.Add(functionResponse.ToChatMessage());
+                }
             }
-            while (finishReason != CompletionsFinishReason.Stopped);
 
-
-            Console.WriteLine(history);
+            history.ShowCount();
         }
     }
 }
