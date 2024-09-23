@@ -41,6 +41,7 @@ namespace OpenAIDemo
             builder.Services.AddSingleton<ShoppingListPlugin>();
             builder.Services.AddSingleton<WeatherPlugin>();
             builder.Services.AddTransient<HotelPlugin>();
+            builder.Services.AddTransient<DataAnalysisPlugin>();
 
             builder.Services.AddTransient<ITextEmbeddingGenerationService>((serviceProvider) =>
             {

@@ -1,14 +1,18 @@
-﻿using Azure;
-using Azure.AI.OpenAI;
+﻿#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+using Azure;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Sas;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using OpenAIDemo.Server.FunctionAdapters;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 using OpenAIDemo.Server.Model;
+using OpenAIDemo.Server.Plugins;
 using OpenAIDemo.Shared;
-using System.Text.Json;
 
 namespace OpenAIDemo.Server.Controllers
 {
@@ -16,14 +20,24 @@ namespace OpenAIDemo.Server.Controllers
     [ApiController]
     public class AnalysisController : ControllerBase
     {
+        private static Dictionary<Guid, ChatHistory> _sessions;
         private AzureConfig _config;
-        private static Dictionary<Guid, ChatHistory> _sessions = new Dictionary<Guid, ChatHistory>();
-        private IFunctionHandler _functionHandler;
+        private IChatCompletionService _chat;
+        private Kernel _kernel;
 
-        public AnalysisController(IOptions<AzureConfig> config, IFunctionHandler functionHandler)
+        static AnalysisController()
+        {
+            _sessions = new Dictionary<Guid, ChatHistory>();
+        }
+
+        public AnalysisController(IOptions<AzureConfig> config, IChatCompletionService chat, Kernel kernel, DataAnalysisPlugin plugin)
         {
             _config = config.Value;
-            _functionHandler = functionHandler;
+            _chat = chat;
+            _kernel = kernel;
+
+            _kernel.Plugins.Clear();
+            _kernel.Plugins.AddFromObject(plugin);
         }
 
         [HttpPost()]
@@ -31,11 +45,11 @@ namespace OpenAIDemo.Server.Controllers
         {
             string prompt = @"You are an AI expert on data analysis. A user has uploaded a file into a secure storage. You can retrieve the schema and execute queries over it. 
  The user will provide you the filename and you must:
- 1) read the schema of the file with the get-file-columns function and infer the columns and their meanings
+ 1) read the schema of the file with the get_file_columns function and infer the columns and their meanings
  2) determine 3 insights or comments you would like to retrieve from the data. Important: these insights must not be basic ones anyone can quickly assess. We want interesting facts about the data!
 
 Then, for each of the insights:
- 1) generate the corresponding SQL query and run it via the query-file function
+ 1) generate the corresponding SQL query and run it via the query_file function
  2) interpret the results and generate the comments for the user.
 
 The output must only contain the insights you have generated, in the order you have generated them.
@@ -94,131 +108,193 @@ Data could potentially contain a big number of rows, so make sure all your queri
         {
             var history = _sessions[sessionId];
 
-            // Enter the deployment name you chose when you deployed the model.
-            string engine = "gpt4-des";
+            history.AddUserMessage($"The file name is {fileName}");
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            history.ShowLastLog();
 
-            history.AddMessage(new ChatRequestUserMessage($"The file name is {fileName}"));
-
-            CompletionsFinishReason? finishReason = null;
-
-            do
+            var result = _chat.GetStreamingChatMessageContentsAsync(history, new AzureOpenAIPromptExecutionSettings()
             {
-                var options = new ChatCompletionsOptions(engine,
-                history.Messages)
+                MaxTokens = 500,
+                Temperature = 0.7f,
+                ToolCallBehavior = ToolCallBehavior.EnableKernelFunctions
+            }, _kernel);
+
+            bool someContentReturned = false;
+
+            while (true)
+            {
+                // if we have returned some content in the previous iteration,
+                // we need to send a carriage return to the client
+                if (someContentReturned)
                 {
-                    Temperature = 0.7f,
-                    MaxTokens = 500,
-                };
-                options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
+                    yield return "\n\n";
+                    someContentReturned = false;
+                }
 
-                var response = await client.GetChatCompletionsStreamingAsync(options, token);
+                var fullResponse = string.Empty;
 
-                var responseStreamer = new ResponseStreamer(response);
+                var functionCallBuilder = new FunctionCallContentBuilder();
 
-                await foreach (var streamedResponse in responseStreamer.GetPhrases(token))
+                await foreach (var responseMessage in result)
                 {
-                    if (streamedResponse.ToolCalls.Any())
+                    if (responseMessage.Content != null)
                     {
-                        Console.WriteLine($"Number of tool calls: {streamedResponse.ToolCalls.Count}");
+                        fullResponse += responseMessage.Content;
 
-                        history.AddMessage(streamedResponse);
+                        yield return responseMessage.Content;
 
-                        var tasks = streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>()
-                            .Select(_functionHandler.ExecuteCallAsync)
-                            .ToArray();
+                        someContentReturned = true;
+                    }
 
-                        await Task.WhenAll(tasks);
+                    functionCallBuilder.Append(responseMessage);
+                }
 
-                        foreach (var task in tasks)
+                history.AddAssistantMessage(fullResponse);
+                history.ShowLastLog();
+
+                // handling functions
+                var functionCalls = functionCallBuilder.Build();
+
+                if (!functionCalls.Any())
+                {
+                    break; // no function calls, the loop is finished
+                }
+
+                Console.WriteLine($"Requested execution of {functionCalls.Count()} functions");
+
+                // step 1: add the request container to the history
+                var functionRequests = new ChatMessageContent(
+                    role: AuthorRole.Assistant,
+                    content: null);
+
+                foreach (var functionRequest in functionCalls)
+                {
+                    functionRequests.Items.Add(functionRequest);
+                }
+                history.Add(functionRequests);
+
+                // Step 2: trigger the execution and await
+                var functionExecutions =
+                    functionCalls.Select(async f =>
+                    {
+                        try
                         {
-                            history.AddMessage(task.Result);
+                            return await f.InvokeAsync(_kernel);
                         }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Response: {streamedResponse.Content}");
-                        yield return streamedResponse.Content;
-                    }
-                }
+                        catch (Exception ex)
+                        {
+                            return new FunctionResultContent(f, ex);
+                        }
 
-                if (responseStreamer.Result != null)
+                    });
+
+                var functionResponses = await Task.WhenAll(functionExecutions);
+
+                // step 3: add the responses to the history
+                foreach (var functionResponse in functionResponses)
                 {
-                    history.AddMessage(responseStreamer.Result);
+                    history.Add(functionResponse.ToChatMessage());
                 }
-
-                finishReason = responseStreamer.FinishReason;
             }
-            while (finishReason != CompletionsFinishReason.Stopped);
 
-            Console.WriteLine(history);
+            history.ShowCount();
         }
 
-        [HttpPost("{sessionId}/message")]
-        public async IAsyncEnumerable<string> PostMessage(Guid sessionId, [FromBody] string message, CancellationToken token)
+        [HttpPost("{sessionId}/message-stream")]
+        public async IAsyncEnumerable<string> PostMessageStream(Guid sessionId, [FromBody] string message, CancellationToken token)
         {
             var history = _sessions[sessionId];
 
-            // Enter the deployment name you chose when you deployed the model.
-            string engine = "gpt4-des";
+            history.AddUserMessage(message);
 
-            OpenAIClient client = new(new Uri(_config.OpenAi.OpenAiEndpoint), new AzureKeyCredential(_config.OpenAi.OpenAiKey));
+            history.ShowLastLog();
 
-            history.AddMessage(new ChatRequestUserMessage(message));
-
-            CompletionsFinishReason? finishReason = null;
-
-            do
+            var result = _chat.GetStreamingChatMessageContentsAsync(history, new AzureOpenAIPromptExecutionSettings()
             {
-                var options = new ChatCompletionsOptions(engine,
-                history.Messages)
+                MaxTokens = 500,
+                Temperature = 0.7f,
+                ToolCallBehavior = ToolCallBehavior.EnableKernelFunctions
+            }, _kernel);
+
+            bool someContentReturned = false;
+
+            while (true)
+            {
+                // if we have returned some content in the previous iteration,
+                // we need to send a carriage return to the client
+                if (someContentReturned)
                 {
-                    Temperature = 0.7f,
-                    MaxTokens = 500,
-                };
-                options.Tools.AddRange(_functionHandler.GetFunctionDefinitions());
+                    yield return "\n\n";
+                    someContentReturned = false;
+                }
 
-                var response = await client.GetChatCompletionsStreamingAsync(options, token);
+                var fullResponse = string.Empty;
 
-                var responseStreamer = new ResponseStreamer(response);
+                var functionCallBuilder = new FunctionCallContentBuilder();
 
-                await foreach (var streamedResponse in responseStreamer.GetPhrases(token))
+                await foreach (var responseMessage in result)
                 {
-                    if (streamedResponse.ToolCalls.Any())
+                    if (responseMessage.Content != null)
                     {
-                        Console.WriteLine($"Number of tool calls: {streamedResponse.ToolCalls.Count}");
+                        fullResponse += responseMessage.Content;
 
-                        history.AddMessage(streamedResponse);
+                        yield return responseMessage.Content;
 
-                        var tasks = streamedResponse.ToolCalls.OfType<ChatCompletionsFunctionToolCall>()
-                            .Select(_functionHandler.ExecuteCallAsync)
-                            .ToArray();
+                        someContentReturned = true;
+                    }
 
-                        await Task.WhenAll(tasks);
+                    functionCallBuilder.Append(responseMessage);
+                }
 
-                        foreach (var task in tasks)
+                history.AddAssistantMessage(fullResponse);
+                history.ShowLastLog();
+
+                // handling functions
+                var functionCalls = functionCallBuilder.Build();
+
+                if (!functionCalls.Any())
+                {
+                    break; // no function calls, the loop is finished
+                }
+
+                Console.WriteLine($"Requested execution of {functionCalls.Count()} functions");
+
+                // step 1: add the request container to the history
+                var functionRequests = new ChatMessageContent(
+                    role: AuthorRole.Assistant,
+                    content: null);
+
+                foreach (var functionRequest in functionCalls)
+                {
+                    functionRequests.Items.Add(functionRequest);
+                }
+                history.Add(functionRequests);
+
+                // Step 2: trigger the execution and await
+                var functionExecutions =
+                    functionCalls.Select(async f =>
+                    {
+                        try
                         {
-                            history.AddMessage(task.Result);
+                            return await f.InvokeAsync(_kernel);
                         }
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Response: {streamedResponse.Content}");
-                        yield return streamedResponse.Content;
-                    }
-                }
+                        catch (Exception ex)
+                        {
+                            return new FunctionResultContent(f, ex);
+                        }
 
-                if (responseStreamer.Result != null)
+                    });
+
+                var functionResponses = await Task.WhenAll(functionExecutions);
+
+                // step 3: add the responses to the history
+                foreach (var functionResponse in functionResponses)
                 {
-                    history.AddMessage(responseStreamer.Result);
+                    history.Add(functionResponse.ToChatMessage());
                 }
-
-                finishReason = responseStreamer.FinishReason;
             }
-            while (finishReason != CompletionsFinishReason.Stopped);
 
-            Console.WriteLine(history);
+            history.ShowCount();
         }
     }
 }

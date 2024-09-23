@@ -134,7 +134,7 @@
             var content = JsonContent.Create(text);
 
             IAsyncEnumerable<string> items =
-                this.Http.PostAndGetStreamAsync<string>($"api/analysis/{chatSession.Id}/message", content);
+                this.Http.PostAndGetStreamAsync<string>($"api/analysis/{chatSession.Id}/message-stream", content);
 
             chatMessage.Content = string.Empty;
             await foreach (string item in items)
