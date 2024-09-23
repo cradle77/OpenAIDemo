@@ -72,7 +72,7 @@ namespace OpenAIDemo.Server.Controllers
                 }
 
                 // Step 1: add to the history, including the possible function calls
-                history.AddAssistantMessage(responseMessage);
+                history.Add(result);
                 history.ShowLastLog();
 
                 IEnumerable<FunctionCallContent> functionCalls = FunctionCallContent.GetFunctionCalls(result);
