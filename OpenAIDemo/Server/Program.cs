@@ -2,9 +2,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
-using Microsoft.SemanticKernel.Connectors.OpenAI;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Server.Plugins;
+using System.Text;
 
 namespace OpenAIDemo
 {
@@ -65,7 +65,6 @@ namespace OpenAIDemo
             app.UseStaticFiles();
 
             app.UseRouting();
-
 
             app.MapRazorPages();
             app.MapControllers();
