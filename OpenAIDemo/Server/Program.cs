@@ -1,10 +1,15 @@
+#pragma warning disable SKEXP0001 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable SKEXP0010 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+
+using Azure;
+using Azure.Search.Documents;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
+using Microsoft.SemanticKernel.Embeddings;
 using OpenAIDemo.Server.Model;
 using OpenAIDemo.Server.Plugins;
-using System.Text;
 
 namespace OpenAIDemo
 {
@@ -35,12 +40,34 @@ namespace OpenAIDemo
 
             builder.Services.AddSingleton<ShoppingListPlugin>();
             builder.Services.AddSingleton<WeatherPlugin>();
+            builder.Services.AddTransient<HotelPlugin>();
+
+            builder.Services.AddTransient<ITextEmbeddingGenerationService>((serviceProvider) =>
+            {
+                AzureConfig options = serviceProvider.GetRequiredService<IOptions<AzureConfig>>().Value;
+
+                return new AzureOpenAITextEmbeddingGenerationService(
+                    options.OpenAi.EmbedEngine,
+                    options.OpenAi.OpenAiEndpoint,
+                    options.OpenAi.OpenAiKey);
+            });
+
+            builder.Services.AddTransient<SearchClient>((ServiceProvider) =>
+            {
+                AzureConfig options = ServiceProvider.GetRequiredService<IOptions<AzureConfig>>().Value;
+
+                return new SearchClient(
+                    new Uri(options.Search.SearchUrl),
+                    options.Search.IndexName,
+                    new AzureKeyCredential(options.Search.SearchKey));
+            });
 
             builder.Services.AddTransient<KernelPluginCollection>((serviceProvider) =>
                 new KernelPluginCollection()
                 {
                     KernelPluginFactory.CreateFromType<ShoppingListPlugin>("ShoppingList", serviceProvider),
-                    KernelPluginFactory.CreateFromType<WeatherPlugin>("Weather", serviceProvider)
+                    KernelPluginFactory.CreateFromType<WeatherPlugin>("Weather", serviceProvider),
+                    KernelPluginFactory.CreateFromType<HotelPlugin>("Hotel", serviceProvider)
                 });
 
             builder.Services.AddTransient<Kernel>();
