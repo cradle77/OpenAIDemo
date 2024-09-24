@@ -23,14 +23,17 @@ configuration.Bind("Azure", azureConfig);
 var searchUrl = new Uri(azureConfig.Search.SearchUrl);
 var indexName = azureConfig.Search.IndexName;
 var searchCredential = new AzureKeyCredential(azureConfig.Search.SearchKey);
-const int ModelDimensions = 1536;
+
+//const int ModelDimensions = 1536; // ada
+const int ModelDimensions = 3072; // text-embedding-3-large
+
 const string vectorSearchConfigName = "my-vector-config";
 string openAiEndpoint = azureConfig.OpenAi.OpenAiEndpoint;
 string openAiKey = azureConfig.OpenAi.OpenAiKey;
 string engine = azureConfig.OpenAi.EmbedEngine;
 
 await QueryIndexAsync();
-
+//await CreateIndexAsync();
 
 async Task QueryIndexAsync()
 {
@@ -74,7 +77,7 @@ async Task QueryIndexAsync()
 }
 
 
-async void CreateIndexAsync()
+async Task CreateIndexAsync()
 {
     var indexClient = new SearchIndexClient(searchUrl, searchCredential);
 
@@ -133,12 +136,14 @@ async void CreateIndexAsync()
             .Select((record, index) => new { record, index })
             .GroupBy(x => x.index / 16)
             .Select(g => g.Select(x => x.record))
-            .Take(100);
+            .ToList();
 
+        int totalCount = batches.Count;
         int i = 0;
+
         foreach (var batch in batches)
         {
-            Console.WriteLine($"Calculating batch {++i}");
+            Console.WriteLine($"Calculating batch {++i} of {totalCount}");
             var inputs = batch.ToList();
 
             var result = await embeddingService.GenerateEmbeddingsAsync(batch.Select(x => x.GetEmbeddingInput()).ToList());
