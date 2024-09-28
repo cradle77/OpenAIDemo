@@ -42,6 +42,8 @@ This is the actual review to analyze:
 
             var result = await _kernel.InvokePromptAsync(reviewText, new KernelArguments(executionSettings));
 
+            Console.WriteLine(result);
+
             var review = JsonSerializer.Deserialize<ReviewDetails>(result.ToString());
 
             return this.Ok(review);

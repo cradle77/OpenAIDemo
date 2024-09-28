@@ -50,7 +50,7 @@ namespace OpenAIDemo.Server.Plugins
         }
 
         [KernelFunction("book_hotel")]
-        [Description("This allows you to book a hotel.")]
+        [Description("This allows you to book a hotel. Before proceeding, it's important to ALWAYS ask the user for confirmation.")]
         [return: Description("A confirmation message and the booking confirmation number")]
         public HotelBookingResponse BookHotel(HotelBookingRequest request)
         {
