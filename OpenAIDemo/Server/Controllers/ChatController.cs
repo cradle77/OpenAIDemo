@@ -83,10 +83,8 @@ namespace OpenAIDemo.Server.Controllers
             });
 
             var fullResponse = string.Empty;
-            //var streamer = new PhraseStreamer(result);
 
             await foreach (var responseMessage in result)
-            //await foreach (var responseMessage in streamer.GetPhrases(token))
             {
                 fullResponse += responseMessage.Content;
 
@@ -96,11 +94,42 @@ namespace OpenAIDemo.Server.Controllers
             }
 
             history.AddAssistantMessage(fullResponse);
-            //history.AddAssistantMessage(streamer.Result);
 
             history.ShowLastLog();
 
             history.ShowCount();
         }
+
+        //[HttpPost("{sessionId}/message-stream")]
+        //public async IAsyncEnumerable<string> PostMessageStream(Guid sessionId, [FromBody] string message, CancellationToken token)
+        //{
+        //    var history = _sessions[sessionId];
+
+        //    history.AddUserMessage(message);
+
+        //    history.ShowLastLog();
+
+        //    var result = _chat.GetStreamingChatMessageContentsAsync(history, new AzureOpenAIPromptExecutionSettings()
+        //    {
+        //        MaxTokens = 500,
+        //        Temperature = 0.7f,
+        //    });
+
+        //    var streamer = new PhraseStreamer(result);
+
+        //    await foreach (var responseMessage in streamer.GetPhrases(token))
+        //    {
+        //        Console.WriteLine(responseMessage.Content);
+
+        //        yield return responseMessage.Content;
+        //    }
+
+        //    history.AddAssistantMessage(streamer.Result);
+
+        //    history.ShowLastLog();
+
+        //    history.ShowCount();
+        //}
+
     }
 }
