@@ -62,6 +62,9 @@ namespace OpenAIDemo
                     new AzureKeyCredential(options.Search.SearchKey));
             });
 
+            builder.Services.AddSingleton<IFunctionInvocationFilter, FunctionLogFilter>();
+            builder.Services.AddSingleton<IFunctionInvocationFilter, FunctionExceptionFilter>();
+
             builder.Services.AddTransient<KernelPluginCollection>((serviceProvider) =>
                 new KernelPluginCollection()
                 {
