@@ -85,19 +85,8 @@ namespace OpenAIDemo.Server.Controllers
 
                 // Step 2: trigger the execution and await
                 var functionExecutions =
-                    functionCalls.Select(async f =>
-                    {
-                        try
-                        {
-                            return await f.InvokeAsync(_kernel);
-                        }
-                        catch (Exception ex)
-                        {
-                            return new FunctionResultContent(f, ex);
-                        }
-
-                    });
-
+                    functionCalls.Select(f => f.InvokeAsync(_kernel));
+                
                 var functionResponses = await Task.WhenAll(functionExecutions);
 
                 // Step 3: add the responses to the history
@@ -172,18 +161,7 @@ namespace OpenAIDemo.Server.Controllers
 
                 // Step 2: trigger the execution and await
                 var functionExecutions =
-                    functionCalls.Select(async f => 
-                    {
-                        try
-                        {
-                            return await f.InvokeAsync(_kernel);
-                        }
-                        catch (Exception ex)
-                        {
-                            return new FunctionResultContent(f, ex);
-                        }
-                        
-                    });
+                    functionCalls.Select(f => f.InvokeAsync(_kernel));
 
                 var functionResponses = await Task.WhenAll(functionExecutions);
 

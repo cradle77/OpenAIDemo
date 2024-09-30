@@ -37,6 +37,7 @@ namespace OpenAIDemo
             builder.Services.AddSingleton<WeatherPlugin>();
 
             builder.Services.AddSingleton<IFunctionInvocationFilter, FunctionLogFilter>();
+            builder.Services.AddSingleton<IFunctionInvocationFilter, FunctionExceptionFilter>();
 
             builder.Services.AddTransient<KernelPluginCollection>((serviceProvider) =>
                 new KernelPluginCollection()
