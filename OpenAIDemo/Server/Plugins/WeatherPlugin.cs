@@ -19,6 +19,8 @@ namespace OpenAIDemo.Server.Plugins
         {
             try
             {
+                await Task.Delay(1000);
+
                 var forecasts = Enumerable.Range(0, query.GetNumberOfDays()).Select(index => new WeatherForecast
                 {
                     Date = DateOnly.FromDateTime(query.StartDate.GetValueOrDefault(DateTime.Today)).AddDays(index),
