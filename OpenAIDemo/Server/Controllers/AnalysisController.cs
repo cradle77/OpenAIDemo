@@ -175,19 +175,8 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
                 // Step 2: trigger the execution and await
                 var functionExecutions =
-                    functionCalls.Select(async f =>
-                    {
-                        try
-                        {
-                            return await f.InvokeAsync(_kernel);
-                        }
-                        catch (Exception ex)
-                        {
-                            return new FunctionResultContent(f, ex);
-                        }
-
-                    });
-
+                    functionCalls.Select(f => f.InvokeAsync(_kernel));
+                
                 var functionResponses = await Task.WhenAll(functionExecutions);
 
                 // step 3: add the responses to the history
@@ -272,18 +261,7 @@ Data could potentially contain a big number of rows, so make sure all your queri
 
                 // Step 2: trigger the execution and await
                 var functionExecutions =
-                    functionCalls.Select(async f =>
-                    {
-                        try
-                        {
-                            return await f.InvokeAsync(_kernel);
-                        }
-                        catch (Exception ex)
-                        {
-                            return new FunctionResultContent(f, ex);
-                        }
-
-                    });
+                    functionCalls.Select(f => f.InvokeAsync(_kernel));
 
                 var functionResponses = await Task.WhenAll(functionExecutions);
 
