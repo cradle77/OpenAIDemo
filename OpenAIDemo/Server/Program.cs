@@ -36,6 +36,8 @@ namespace OpenAIDemo
             builder.Services.AddSingleton<ShoppingListPlugin>();
             builder.Services.AddSingleton<WeatherPlugin>();
 
+            builder.Services.AddSingleton<IFunctionInvocationFilter, FunctionLogFilter>();
+
             builder.Services.AddTransient<KernelPluginCollection>((serviceProvider) =>
                 new KernelPluginCollection()
                 {
