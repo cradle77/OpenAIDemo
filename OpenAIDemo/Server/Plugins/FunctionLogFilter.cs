@@ -22,12 +22,17 @@ namespace OpenAIDemo.Server.Plugins
         string REVERSE = Console.IsOutputRedirected ? "" : "\x1b[7m";
         string NOREVERSE = Console.IsOutputRedirected ? "" : "\x1b[27m";
 
+        private object _lock = new object();
+
         public async Task OnFunctionInvocationAsync(FunctionInvocationContext context, Func<FunctionInvocationContext, Task> next)
         {
-            Console.WriteLine($"Function {YELLOW}{BOLD}{context.Function.Name}{NOBOLD}{NORMAL} requested with parameters:");
-            foreach (var parameter in context.Arguments)
+            lock (_lock)
             {
-                Console.WriteLine($"{BOLD}{parameter.Key}{NOBOLD}: {parameter.Value}");
+                Console.WriteLine($"Function {YELLOW}{BOLD}{context.Function.Name}{NOBOLD}{NORMAL} requested with parameters:");
+                foreach (var parameter in context.Arguments)
+                {
+                    Console.WriteLine($"{BOLD}{parameter.Key}{NOBOLD}: {parameter.Value}");
+                }
             }
 
             var watch = Stopwatch.StartNew();
@@ -36,10 +41,13 @@ namespace OpenAIDemo.Server.Plugins
 
             watch.Stop();
 
-            Console.WriteLine($"Function {YELLOW}{BOLD}{context.Function.Name}{NOBOLD}{NORMAL} completed in {watch.ElapsedMilliseconds}ms with result:");
+            lock (_lock)
+            {
+                Console.WriteLine($"Function {YELLOW}{BOLD}{context.Function.Name}{NOBOLD}{NORMAL} completed in {watch.ElapsedMilliseconds}ms with result:");
 
-            var resultSerialized = JsonSerializer.Serialize(context.Result.GetValue<object>(), new JsonSerializerOptions() { WriteIndented = true });
-            Console.WriteLine(resultSerialized);
+                var resultSerialized = JsonSerializer.Serialize(context.Result.GetValue<object>(), new JsonSerializerOptions() { WriteIndented = true });
+                Console.WriteLine(resultSerialized);
+            }
         }
     }
 }
