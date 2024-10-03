@@ -18,6 +18,7 @@ namespace OpenAIDemo.Server.Controllers
         {
             _kernel = kernel;
             _kernel.Plugins.Clear();
+            _kernel.FunctionInvocationFilters.Clear();
         }
 
         [HttpPost()] // <-- ReviewDetails
@@ -29,7 +30,7 @@ For example a prompt could be like:
 This is an example of a review:
 ```Hotel Corinthia was simply stunning```
 
-You need to invoke the hotel-review function to store the review details.
+You need to infer the important details from the review text following the provided schema.
 
 This is the actual review to analyze:
 
@@ -37,7 +38,7 @@ This is the actual review to analyze:
 
             var executionSettings = new AzureOpenAIPromptExecutionSettings()
             {
-                ResponseFormat = typeof(ReviewDetails)
+                ResponseFormat = typeof(ReviewDetails),
             };
 
             var result = await _kernel.InvokePromptAsync(reviewText, new KernelArguments(executionSettings));

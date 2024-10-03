@@ -23,15 +23,23 @@ namespace OpenAIDemo
 
             builder.Services.Configure<AzureConfig>(builder.Configuration.GetSection("Azure"));
 
+            builder.Services.AddTransient<ApiVersionHandler>();
+
+            builder.Services.AddHttpClient("versioned")
+                .AddHttpMessageHandler<ApiVersionHandler>();
+
             builder.Services.AddSingleton<IChatCompletionService>(sp =>
             {
                 AzureConfig options = sp.GetRequiredService<IOptions<AzureConfig>>().Value;
 
-                // A custom HttpClient can be provided to this constructor
+                var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+
                 return new AzureOpenAIChatCompletionService(
                     options.OpenAi.ChatEngine,
                     options.OpenAi.OpenAiEndpoint,
-                    options.OpenAi.OpenAiKey);
+                    options.OpenAi.OpenAiKey,
+                    modelId:null,
+                    httpClientFactory.CreateClient("versioned"));
             });
 
             builder.Services.AddControllersWithViews();
