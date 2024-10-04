@@ -11,6 +11,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OpenAIDemo.Shared", "OpenAI
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "EmbeddingsGenerator", "EmbeddingsGenerator\EmbeddingsGenerator.csproj", "{10A512AF-341D-4735-A099-DD792A6C7A7B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealtimeDemo", "RealtimeDemo\RealtimeDemo.csproj", "{FA7F04DA-2549-45D4-A4D5-BA9486BAD39C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{10A512AF-341D-4735-A099-DD792A6C7A7B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{10A512AF-341D-4735-A099-DD792A6C7A7B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{10A512AF-341D-4735-A099-DD792A6C7A7B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA7F04DA-2549-45D4-A4D5-BA9486BAD39C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA7F04DA-2549-45D4-A4D5-BA9486BAD39C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA7F04DA-2549-45D4-A4D5-BA9486BAD39C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA7F04DA-2549-45D4-A4D5-BA9486BAD39C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
