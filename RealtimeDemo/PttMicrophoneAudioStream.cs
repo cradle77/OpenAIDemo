@@ -1,73 +1,81 @@
 ﻿using NAudio.Wave;
+using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 
 #nullable disable
 
+/// <summary>
+/// Uses the NAudio library (https://github.com/naudio/NAudio) to provide a rudimentary abstraction of microphone
+/// input as a stream with push-to-talk functionality activated by the shift key.
+/// </summary>
 public class PttMicrophoneAudioStream : Stream, IDisposable
 {
-    [DllImport("user32.dll")]
-    private static extern short GetAsyncKeyState(int vKey);
-
-    private const int VK_SHIFT = 0x10;
-
     private const int SAMPLES_PER_SECOND = 24000;
     private const int BYTES_PER_SAMPLE = 2;
     private const int CHANNELS = 1;
 
     // For simplicity, this is configured to use a static 10-second ring buffer.
-    private readonly byte[] _buffer = new byte[BYTES_PER_SAMPLE * SAMPLES_PER_SECOND * CHANNELS * 30];
+    private readonly byte[] _buffer = new byte[BYTES_PER_SAMPLE * SAMPLES_PER_SECOND * CHANNELS * 10];
     private readonly object _bufferLock = new();
     private int _bufferReadPos = 0;
     private int _bufferWritePos = 0;
 
     private readonly WaveInEvent _waveInEvent;
 
-    private bool isRecording = false;
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int vKey);
+
+    private const int VK_SHIFT = 0x10;
 
     private PttMicrophoneAudioStream()
     {
+        Console.WriteLine("MicrophoneAudioStream started.");
         _waveInEvent = new()
         {
             WaveFormat = new WaveFormat(SAMPLES_PER_SECOND, BYTES_PER_SAMPLE * 8, CHANNELS),
         };
         _waveInEvent.DataAvailable += (_, e) =>
         {
-            bool shiftPressed = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-
-            if (shiftPressed)
+            // Check if shift key is pressed
+            bool isShiftPressed = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+            if (isShiftPressed)
             {
-                if (!isRecording)
-                {
-                    isRecording = true;
-                    Console.WriteLine("Recording started");
-                }
-
+                //Console.WriteLine("Shift key is down - capturing microphone data.");
+                // Proceed as usual
                 lock (_bufferLock)
                 {
                     int bytesToCopy = e.BytesRecorded;
-                    int bytesCopied = 0;
-
-                    while (bytesToCopy > 0)
+                    if (_bufferWritePos + bytesToCopy >= _buffer.Length)
                     {
-                        int spaceAtEnd = _buffer.Length - _bufferWritePos;
-                        int bytesToWrite = Math.Min(bytesToCopy, spaceAtEnd);
-
-                        Array.Copy(e.Buffer, bytesCopied, _buffer, _bufferWritePos, bytesToWrite);
-
-                        _bufferWritePos = (_bufferWritePos + bytesToWrite) % _buffer.Length;
-                        bytesToCopy -= bytesToWrite;
-                        bytesCopied += bytesToWrite;
+                        int bytesToCopyBeforeWrap = _buffer.Length - _bufferWritePos;
+                        Array.Copy(e.Buffer, 0, _buffer, _bufferWritePos, bytesToCopyBeforeWrap);
+                        bytesToCopy -= bytesToCopyBeforeWrap;
+                        _bufferWritePos = 0;
                     }
+                    Array.Copy(e.Buffer, e.BytesRecorded - bytesToCopy, _buffer, _bufferWritePos, bytesToCopy);
+                    _bufferWritePos += bytesToCopy;
                 }
             }
             else
             {
-                if (isRecording)
+                
+                // Create a buffer filled with zeros
+                byte[] silenceBuffer = new byte[e.BytesRecorded];
+                // Copy zeros into the buffer instead of microphone data
+                lock (_bufferLock)
                 {
-                    isRecording = false;
-                    Console.WriteLine("Recording stopped");
+                    int bytesToCopy = e.BytesRecorded;
+                    if (_bufferWritePos + bytesToCopy >= _buffer.Length)
+                    {
+                        int bytesToCopyBeforeWrap = _buffer.Length - _bufferWritePos;
+                        Array.Copy(silenceBuffer, 0, _buffer, _bufferWritePos, bytesToCopyBeforeWrap);
+                        bytesToCopy -= bytesToCopyBeforeWrap;
+                        _bufferWritePos = 0;
+                    }
+                    Array.Copy(silenceBuffer, e.BytesRecorded - bytesToCopy, _buffer, _bufferWritePos, bytesToCopy);
+                    _bufferWritePos += bytesToCopy;
                 }
-                // Do not copy data
             }
         };
         _waveInEvent.StartRecording();
@@ -92,17 +100,13 @@ public class PttMicrophoneAudioStream : Stream, IDisposable
 
     public override int Read(byte[] buffer, int offset, int count)
     {
+        //Console.WriteLine($"Read requested: offset={offset}, count={count}");
+
         int totalCount = count;
 
-        int GetBytesAvailable()
-        {
-            lock (_bufferLock)
-            {
-                return _bufferWritePos < _bufferReadPos
-                    ? _bufferWritePos + (_buffer.Length - _bufferReadPos)
-                    : _bufferWritePos - _bufferReadPos;
-            }
-        }
+        int GetBytesAvailable() => _bufferWritePos < _bufferReadPos
+            ? _bufferWritePos + (_buffer.Length - _bufferReadPos)
+            : _bufferWritePos - _bufferReadPos;
 
         // For simplicity, we'll block until all requested data is available and not perform partial reads.
         while (GetBytesAvailable() < count)
@@ -112,22 +116,26 @@ public class PttMicrophoneAudioStream : Stream, IDisposable
 
         lock (_bufferLock)
         {
-            int bytesCopied = 0;
-
-            while (count > 0)
+            if (_bufferReadPos + count >= _buffer.Length)
             {
-                int bytesToEnd = _buffer.Length - _bufferReadPos;
-                int bytesToRead = Math.Min(count, bytesToEnd);
-
-                Array.Copy(_buffer, _bufferReadPos, buffer, offset + bytesCopied, bytesToRead);
-
-                _bufferReadPos = (_bufferReadPos + bytesToRead) % _buffer.Length;
-                count -= bytesToRead;
-                bytesCopied += bytesToRead;
+                int bytesBeforeWrap = _buffer.Length - _bufferReadPos;
+                Array.Copy(
+                    sourceArray: _buffer,
+                    sourceIndex: _bufferReadPos,
+                    destinationArray: buffer,
+                    destinationIndex: offset,
+                    length: bytesBeforeWrap);
+                _bufferReadPos = 0;
+                count -= bytesBeforeWrap;
+                offset += bytesBeforeWrap;
             }
 
-            return totalCount;
+            Array.Copy(_buffer, _bufferReadPos, buffer, offset, count);
+            _bufferReadPos += count;
         }
+
+        //Console.WriteLine($"Read completed: totalCount={totalCount}");
+        return totalCount;
     }
 
     public override long Seek(long offset, SeekOrigin origin)
@@ -147,6 +155,7 @@ public class PttMicrophoneAudioStream : Stream, IDisposable
 
     protected override void Dispose(bool disposing)
     {
+        Console.WriteLine("MicrophoneAudioStream disposed.");
         _waveInEvent?.Dispose();
         base.Dispose(disposing);
     }
