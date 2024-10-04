@@ -13,7 +13,7 @@ public class MicrophoneAudioStream : Stream, IDisposable
     private const int CHANNELS = 1;
 
     // For simplicity, this is configured to use a static 10-second ring buffer.
-    private readonly byte[] _buffer = new byte[BYTES_PER_SAMPLE * SAMPLES_PER_SECOND * CHANNELS * 10];
+    private readonly byte[] _buffer = new byte[BYTES_PER_SAMPLE * SAMPLES_PER_SECOND * CHANNELS * 20];
     private readonly object _bufferLock = new();
     private int _bufferReadPos = 0;
     private int _bufferWritePos = 0;
