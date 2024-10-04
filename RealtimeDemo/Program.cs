@@ -31,29 +31,36 @@ public class Program
         RealtimeConversationClient client = GetConfiguredClient();
         using RealtimeConversationSession session = await client.StartConversationSessionAsync();
 
-        // We'll add a simple function tool that enables the model to interpret user input to figure out when it
-        // might be a good time to stop the interaction.
-        ConversationFunctionTool finishConversationTool = new()
-        {
-            Name = "user_wants_to_finish_conversation",
-            Description = "Invoked when the user says goodbye, expresses being finished, or otherwise seems to want to stop the interaction.",
-            Parameters = BinaryData.FromString("{}")
-        };
-
+        FunctionHandler handler = new(
+            [
+            new HotelSearchAdapter(_azureConfig),
+            new WeatherFunctionAdapter(),
+            new ShoppingAddAdapter(),
+            new ShoppingGetListAdapter(),
+            new ShoppingModifyAdapter(),
+            new HotelBookingAdapter(),
+            new FinishConversationTool()
+            ]);
         WeatherFunctionAdapter weatherFunction = new();
 
         // Now we configure the session using the tool we created along with transcription options that enable input
         // audio transcription with whisper.
-        await session.ConfigureSessionAsync(new ConversationSessionOptions()
+        var options = new ConversationSessionOptions()
         {
             Instructions = $"You are a very useful AI assistant who will answer questions and manages a shopping list. Please remember to not mention the content of the shopping list every time otherwise it will get very boring.Today's date is in European format is {DateTime.Today.ToShortDateString()}.",
-            Tools = { finishConversationTool, weatherFunction.GetFunctionDefinition() },
             Voice = ConversationVoice.Echo,
             InputTranscriptionOptions = new()
             {
                 Model = "whisper-1",
             },
-        });
+        };
+
+        foreach (var function in handler.GetFunctionDefinitions())
+        {
+            options.Tools.Add(function);
+        }
+
+        await session.ConfigureSessionAsync(options);
 
         // For convenience, we'll proactively start playback to the speakers now. Nothing will play until it's enqueued.
         SpeakerOutput speakerOutput = new();
@@ -123,29 +130,10 @@ public class Program
             // That's a good signal to provide a visual break and perform final evaluation of tool calls.
             if (update is ConversationItemFinishedUpdate itemFinishedUpdate)
             {
-                Console.WriteLine();
-                if (itemFinishedUpdate.FunctionName == finishConversationTool.Name)
+                if (!string.IsNullOrEmpty(itemFinishedUpdate.FunctionName))
                 {
-                    Console.WriteLine($" <<< Finish tool invoked -- ending conversation!");
-                    break;
-                }
-                if (itemFinishedUpdate.FunctionName == "get-weather")
-                {
-                    var request = ConversationItem.CreateFunctionCall(itemFinishedUpdate.FunctionName, itemFinishedUpdate.FunctionCallId, itemFinishedUpdate.FunctionCallArguments);
-                    await session.AddItemAsync(request);
-
-                    Console.WriteLine("request added");
-
-                    var weatherForecasts = await weatherFunction.InvokeAsync(itemFinishedUpdate.FunctionCallId, itemFinishedUpdate.FunctionCallArguments);
-
-                    var result = JsonSerializer.Serialize(weatherForecasts);
-
-                    Console.WriteLine(result);
-
-                    var item = ConversationItem.CreateFunctionCallOutput(itemFinishedUpdate.FunctionCallId, result);
-                    await session.AddItemAsync(item);
-
-                    await session.StartResponseTurnAsync();
+                    Console.WriteLine($" <<< Requesting execution: {itemFinishedUpdate.FunctionName}");
+                    await handler.ExecuteCallAsync(session, itemFinishedUpdate);
                 }
             }
 

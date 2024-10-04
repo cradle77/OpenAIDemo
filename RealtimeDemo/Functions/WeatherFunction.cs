@@ -1,16 +1,11 @@
 ﻿#pragma warning disable OPENAI002 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
 
 using OpenAI.RealtimeConversation;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace RealtimeDemo.Functions
 {
-    public class WeatherFunctionAdapter
+    public class WeatherFunctionAdapter : IFunctionAdapter
     {
         public string FunctionName => "get-weather";
 
@@ -53,10 +48,8 @@ namespace RealtimeDemo.Functions
             "Clear", "Partly Cloudy", "Overcast", "Rainy", "Thunderstorms", "Windy"
         };
 
-        public async Task<IEnumerable<WeatherForecast>> InvokeAsync(string id, string arguments)
+        public async Task<string> InvokeAsync(string id, string arguments)
         {
-            string result = null;
-
             var parameters = JsonSerializer.Deserialize<WeatherQuery>(arguments, new JsonSerializerOptions() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
             var forecasts = Enumerable.Range(0, parameters.NumberOfDays).Select(index => new WeatherForecast
@@ -67,7 +60,7 @@ namespace RealtimeDemo.Functions
             })
             .ToArray();
 
-            return forecasts;
+            return JsonSerializer.Serialize(forecasts);
         }
     }
 
