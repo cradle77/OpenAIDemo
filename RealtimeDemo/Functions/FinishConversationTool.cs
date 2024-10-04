@@ -6,13 +6,13 @@ namespace RealtimeDemo.Functions
 {
     public class FinishConversationTool : IFunctionAdapter
     {
-        public string FunctionName => throw new NotImplementedException();
+        public string FunctionName => "user_wants_to_finish_conversation";
 
         public ConversationFunctionTool GetFunctionDefinition()
         {
             return new()
             {
-                Name = "user_wants_to_finish_conversation",
+                Name = this.FunctionName,
                 Description = "Invoked when the user says goodbye, expresses being finished, or otherwise seems to want to stop the interaction.",
                 Parameters = BinaryData.FromString("{}")
             };
