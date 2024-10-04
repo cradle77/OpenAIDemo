@@ -85,15 +85,15 @@ namespace OpenAIDemo.Server.Controllers
 
                 // Step 2: trigger the execution and await
                 var functionExecutions =
-                    functionCalls.Select(async f =>
+                    functionCalls.Select(f =>
                     {
                         try
                         {
-                            return await f.InvokeAsync(_kernel);
+                            return f.InvokeAsync(_kernel);
                         }
                         catch (Exception ex)
                         {
-                            return new FunctionResultContent(f, ex);
+                            return Task.FromResult(new FunctionResultContent(f, ex));
                         }
 
                     });
